@@ -15,8 +15,6 @@ import {
 } from "./wallet.js";
 import {
   ALL_ENDPOINTS,
-  PAID_ENDPOINTS,
-  FREE_ENDPOINTS,
   searchEndpoints,
   formatEndpointsTable,
   getEndpointsBySource,
@@ -32,67 +30,62 @@ const server = new McpServer({
 // ENDPOINT DISCOVERY
 // =============================================================================
 
-// Tool: List available x402 endpoints
-server.tool(
+server.registerTool(
   "list_x402_endpoints",
-  `List all available x402 API endpoints from x402.biwas.xyz and stx402.com. Use this FIRST to discover what actions are available before trying to execute them.
+  {
+    description: `List known x402 API endpoints from x402.biwas.xyz and stx402.com.
 
 The agent can:
-1. Execute x402 endpoints (paid API calls for DeFi analytics, AI services, market data, utilities)
+1. Execute x402 endpoints from these sources (paid API calls with automatic payment handling)
 2. Execute direct Stacks transactions (transfer STX, call contracts, deploy contracts)
-
-If a user requests something not in the endpoint list and not a direct blockchain transaction, inform them it's not currently available.
 
 Sources:
 - x402.biwas.xyz: DeFi analytics, market data, wallet analysis, Zest/ALEX protocols
 - stx402.com: AI services, cryptography, storage, utilities, agent registry`,
-  {
-    source: z
-      .enum(["x402.biwas.xyz", "stx402.com", "all"])
-      .optional()
-      .default("all")
-      .describe("Filter by API source"),
-    category: z
-      .string()
-      .optional()
-      .describe("Filter by category (use without value to see available categories)"),
-    search: z
-      .string()
-      .optional()
-      .describe("Search endpoints by keyword (searches path, description, category)"),
-    showFreeOnly: z
-      .boolean()
-      .optional()
-      .describe("Only show free endpoints (no payment required)"),
-    showPaidOnly: z
-      .boolean()
-      .optional()
-      .describe("Only show paid endpoints (require x402 payment)"),
+    inputSchema: {
+      source: z
+        .enum(["x402.biwas.xyz", "stx402.com", "all"])
+        .optional()
+        .default("all")
+        .describe("Filter by API source"),
+      category: z
+        .string()
+        .optional()
+        .describe("Filter by category (use without value to see available categories)"),
+      search: z
+        .string()
+        .optional()
+        .describe("Search endpoints by keyword (searches path, description, category)"),
+      showFreeOnly: z
+        .boolean()
+        .optional()
+        .describe("Only show free endpoints (no payment required)"),
+      showPaidOnly: z
+        .boolean()
+        .optional()
+        .describe("Only show paid endpoints (require x402 payment)"),
+    },
   },
   async ({ source, category, search, showFreeOnly, showPaidOnly }) => {
     try {
       let endpoints = ALL_ENDPOINTS;
 
-      // Filter by source
       if (source && source !== "all") {
         endpoints = getEndpointsBySource(source);
       }
 
-      // Filter by free/paid
       if (showFreeOnly) {
         endpoints = endpoints.filter((ep) => ep.cost === "FREE");
       } else if (showPaidOnly) {
         endpoints = endpoints.filter((ep) => ep.cost !== "FREE");
       }
 
-      // Filter by category
       if (category) {
         endpoints = endpoints.filter(
           (ep) => ep.category.toLowerCase() === category.toLowerCase()
         );
       }
 
-      // Search filter
       if (search) {
         const searchResults = searchEndpoints(search);
         endpoints = endpoints.filter((ep) => searchResults.includes(ep));
@@ -125,7 +118,7 @@ If you're looking to perform a direct blockchain action (transfer STX, call a co
         content: [
           {
             type: "text",
-            text: `# Available x402 Endpoints (${endpoints.length} total)\n\n${sourceInfo}\nDefault API: ${API_URL}\n${formatted}\n\n---\nUse execute_x402_endpoint to call any of these endpoints. Specify apiUrl parameter for endpoints from a different source.`,
+            text: `# Available x402 Endpoints (${endpoints.length} total)\n\n${sourceInfo}\nDefault API: ${API_URL}\n${formatted}\n\n---\nUse execute_x402_endpoint to call any of these endpoints.`,
           },
         ],
       };
@@ -143,11 +136,11 @@ If you're looking to perform a direct blockchain action (transfer STX, call a co
 // WALLET & BALANCE
 // =============================================================================
 
-// Tool: Get wallet info
-server.tool(
+server.registerTool(
   "get_wallet_info",
-  "Get the configured wallet address, network, and API URL. Use this to check the current wallet configuration.",
-  {},
+  {
+    description: "Get the configured wallet address, network, and API URL.",
+  },
   async () => {
     try {
       const address = await getWalletAddress();
@@ -177,22 +170,22 @@ server.tool(
   }
 );
 
-// Tool: Get STX balance
-server.tool(
+server.registerTool(
   "get_stx_balance",
-  "Get the STX balance for a wallet address. Returns the available and locked balance in micro-STX.",
   {
-    address: z
-      .string()
-      .optional()
-      .describe("Wallet address to check. Uses configured wallet if not provided."),
+    description: "Get the STX balance for a wallet address.",
+    inputSchema: {
+      address: z
+        .string()
+        .optional()
+        .describe("Wallet address to check. Uses configured wallet if not provided."),
+    },
   },
   async ({ address }) => {
     try {
       const walletAddress = address || (await getWalletAddress());
       const balance = await getStxBalance(walletAddress, NETWORK);
 
-      // Convert micro-STX to STX for display
       const stxBalance = (BigInt(balance.stx) / BigInt(1000000)).toString();
       const stxLocked = (BigInt(balance.stxLocked) / BigInt(1000000)).toString();
 
@@ -233,21 +226,20 @@ server.tool(
 // DIRECT STACKS TRANSACTIONS
 // =============================================================================
 
-// Tool: Transfer STX
-server.tool(
+server.registerTool(
   "transfer_stx",
-  `Transfer STX tokens to a recipient address. This signs and broadcasts a transaction on the Stacks blockchain.
+  {
+    description: `Transfer STX tokens to a recipient address. Signs and broadcasts the transaction.
 
 Example: To send 2 STX, use amount "2000000" (micro-STX).
 1 STX = 1,000,000 micro-STX`,
-  {
-    recipient: z.string().describe("The recipient's Stacks address (starts with SP or ST)"),
-    amount: z
-      .string()
-      .describe(
-        "Amount in micro-STX (1 STX = 1,000,000 micro-STX). Example: '2000000' for 2 STX"
-      ),
-    memo: z.string().optional().describe("Optional memo message to include with the transfer"),
+    inputSchema: {
+      recipient: z.string().describe("The recipient's Stacks address (starts with SP or ST)"),
+      amount: z
+        .string()
+        .describe("Amount in micro-STX (1 STX = 1,000,000 micro-STX). Example: '2000000' for 2 STX"),
+      memo: z.string().optional().describe("Optional memo message to include with the transfer"),
+    },
   },
   async ({ recipient, amount, memo }) => {
     try {
@@ -288,29 +280,25 @@ Example: To send 2 STX, use amount "2000000" (micro-STX).
   }
 );
 
-// Tool: Call contract
-server.tool(
+server.registerTool(
   "call_contract",
-  `Call a function on a Stacks smart contract. This signs and broadcasts a contract call transaction.
-
-Use this for interacting with DeFi protocols, NFTs, or any Clarity smart contract.
-For typed arguments, use objects like {type: 'uint', value: 100} or {type: 'principal', value: 'SP...'}`,
   {
-    contractAddress: z.string().describe("The contract deployer's address (e.g., SP2...)"),
-    contractName: z.string().describe("The contract name (e.g., 'my-token')"),
-    functionName: z.string().describe("The function to call (e.g., 'transfer')"),
-    functionArgs: z
-      .array(z.unknown())
-      .default([])
-      .describe(
-        "Function arguments. Primitives are auto-converted. For explicit types: {type: 'uint'|'int'|'principal'|'string-ascii'|'string-utf8'|'bool'|'buffer'|'none'|'some'|'list'|'tuple', value: ...}"
-      ),
-    postConditionMode: z
-      .enum(["allow", "deny"])
-      .default("deny")
-      .describe(
-        "'deny' (default): Blocks unexpected asset transfers. 'allow': Permits any asset transfers."
-      ),
+    description: `Call a function on a Stacks smart contract. Signs and broadcasts the transaction.
+
+For typed arguments, use objects like {type: 'uint', value: 100} or {type: 'principal', value: 'SP...'}`,
+    inputSchema: {
+      contractAddress: z.string().describe("The contract deployer's address (e.g., SP2...)"),
+      contractName: z.string().describe("The contract name (e.g., 'my-token')"),
+      functionName: z.string().describe("The function to call (e.g., 'transfer')"),
+      functionArgs: z
+        .array(z.unknown())
+        .default([])
+        .describe("Function arguments. For explicit types: {type: 'uint'|'int'|'principal'|..., value: ...}"),
+      postConditionMode: z
+        .enum(["allow", "deny"])
+        .default("deny")
+        .describe("'deny' (default): Blocks unexpected transfers. 'allow': Permits any transfers."),
+    },
   },
   async ({ contractAddress, contractName, functionName, functionArgs, postConditionMode }) => {
     try {
@@ -358,15 +346,14 @@ For typed arguments, use objects like {type: 'uint', value: 100} or {type: 'prin
   }
 );
 
-// Tool: Deploy contract
-server.tool(
+server.registerTool(
   "deploy_contract",
-  "Deploy a Clarity smart contract to the Stacks blockchain. The contract will be deployed from the configured wallet.",
   {
-    contractName: z
-      .string()
-      .describe("Unique name for the contract (lowercase, hyphens allowed)"),
-    codeBody: z.string().describe("The complete Clarity source code"),
+    description: "Deploy a Clarity smart contract to the Stacks blockchain.",
+    inputSchema: {
+      contractName: z.string().describe("Unique name for the contract (lowercase, hyphens allowed)"),
+      codeBody: z.string().describe("The complete Clarity source code"),
+    },
   },
   async ({ contractName, codeBody }) => {
     try {
@@ -401,12 +388,13 @@ server.tool(
   }
 );
 
-// Tool: Get transaction status
-server.tool(
+server.registerTool(
   "get_transaction_status",
-  "Check the status of a Stacks transaction by its txid. Returns pending, success, or failed status.",
   {
-    txid: z.string().describe("The transaction ID (64 character hex string)"),
+    description: "Check the status of a Stacks transaction by its txid.",
+    inputSchema: {
+      txid: z.string().describe("The transaction ID (64 character hex string)"),
+    },
   },
   async ({ txid }) => {
     try {
@@ -439,12 +427,13 @@ server.tool(
   }
 );
 
-// Tool: Broadcast signed transaction
-server.tool(
+server.registerTool(
   "broadcast_transaction",
-  "Broadcast a pre-signed Stacks transaction to the network. Use this if you have a serialized signed transaction.",
   {
-    signedTx: z.string().describe("The signed transaction as a hex string"),
+    description: "Broadcast a pre-signed Stacks transaction to the network.",
+    inputSchema: {
+      signedTx: z.string().describe("The signed transaction as a hex string"),
+    },
   },
   async ({ signedTx }) => {
     try {
@@ -481,49 +470,40 @@ server.tool(
 // X402 API ENDPOINTS
 // =============================================================================
 
-// Tool: Execute any x402 endpoint
-server.tool(
+server.registerTool(
   "execute_x402_endpoint",
-  `Execute an x402 API endpoint. Payment is handled automatically via the x402 protocol.
-
-IMPORTANT: First use list_x402_endpoints to discover available endpoints, then use this tool to execute them.
-
-API Sources:
-- x402.biwas.xyz (default): DeFi analytics, market data, wallet analysis
-- stx402.com: AI services, cryptography, storage, utilities
-
-Examples:
-- GET /api/pools/trending (x402.biwas.xyz) - Get trending liquidity pools
-- POST /api/wallet/classify with {address: "SP..."} - Classify wallet
-- POST /api/ai/summarize (stx402.com) with {text: "..."} - Summarize text
-- GET /api/ai/dad-joke (stx402.com) - Generate a dad joke`,
   {
-    method: z
-      .enum(["GET", "POST", "PUT", "DELETE"])
-      .default("GET")
-      .describe("HTTP method"),
-    path: z
-      .string()
-      .describe("API endpoint path (e.g., '/api/pools/trending', '/api/ai/summarize')"),
-    apiUrl: z
-      .string()
-      .optional()
-      .describe(
-        "API base URL. Defaults to configured API_URL. Use 'https://stx402.com' for stx402.com endpoints."
-      ),
-    params: z
-      .record(z.string(), z.string())
-      .optional()
-      .describe("Query parameters for GET requests (key-value pairs)"),
-    data: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .describe("Request body for POST/PUT requests (JSON object)"),
+    description: `Execute an x402 API endpoint. Payment is handled automatically.
+
+Supported sources:
+- x402.biwas.xyz (default): Use path like "/api/pools/trending"
+- stx402.com: Use apiUrl="https://stx402.com" with path like "/api/ai/dad-joke"
+
+Use list_x402_endpoints to discover available endpoints.`,
+    inputSchema: {
+      method: z
+        .enum(["GET", "POST", "PUT", "DELETE"])
+        .default("GET")
+        .describe("HTTP method"),
+      path: z.string().describe("API endpoint path (e.g., '/api/pools/trending')"),
+      apiUrl: z
+        .enum(["https://x402.biwas.xyz", "https://stx402.com"])
+        .optional()
+        .describe("API base URL. Defaults to configured API_URL (x402.biwas.xyz)."),
+      params: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe("Query parameters for GET requests"),
+      data: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe("Request body for POST/PUT requests"),
+    },
   },
   async ({ method, path, apiUrl, params, data }) => {
     try {
-      const api = await createApiClient(apiUrl);
       const baseUrl = apiUrl || API_URL;
+      const api = await createApiClient(baseUrl);
 
       const response = await api.request({
         method,
