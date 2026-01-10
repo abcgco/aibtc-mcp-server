@@ -7,11 +7,16 @@ export const NETWORK: Network =
   process.env.NETWORK === "mainnet" ? "mainnet" : "testnet";
 export const API_URL = process.env.API_URL || "https://x402.biwas.xyz";
 
-let cachedClient: AxiosInstance | null = null;
+// Cache clients by base URL
+const clientCache: Map<string, AxiosInstance> = new Map();
 
-export async function createApiClient(): Promise<AxiosInstance> {
-  if (cachedClient) {
-    return cachedClient;
+export async function createApiClient(baseUrl?: string): Promise<AxiosInstance> {
+  const url = baseUrl || API_URL;
+
+  // Check cache
+  const cached = clientCache.get(url);
+  if (cached) {
+    return cached;
   }
 
   const mnemonic = process.env.CLIENT_MNEMONIC || "";
@@ -21,7 +26,7 @@ export async function createApiClient(): Promise<AxiosInstance> {
 
   const account = await mnemonicToAccount(mnemonic, NETWORK);
   const axiosInstance = axios.create({
-    baseURL: API_URL,
+    baseURL: url,
     timeout: 60000,
     transformResponse: [
       (data) => {
@@ -66,8 +71,9 @@ export async function createApiClient(): Promise<AxiosInstance> {
     }
   );
 
-  cachedClient = withPaymentInterceptor(axiosInstance, account);
-  return cachedClient;
+  const client = withPaymentInterceptor(axiosInstance, account);
+  clientCache.set(url, client);
+  return client;
 }
 
 export function getWalletAddress(): Promise<string> {
@@ -76,4 +82,12 @@ export function getWalletAddress(): Promise<string> {
     throw new Error("CLIENT_MNEMONIC is required in environment variables");
   }
   return mnemonicToAccount(mnemonic, NETWORK).then((account) => account.address);
+}
+
+export async function getAccount() {
+  const mnemonic = process.env.CLIENT_MNEMONIC || "";
+  if (!mnemonic) {
+    throw new Error("CLIENT_MNEMONIC is required in environment variables");
+  }
+  return mnemonicToAccount(mnemonic, NETWORK);
 }
