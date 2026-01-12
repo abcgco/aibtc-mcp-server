@@ -12,7 +12,7 @@ export function registerTokenTools(server: McpServer): void {
     {
       description: `Get the balance of any SIP-010 token for a wallet address.
 
-Supports well-known tokens by symbol: sBTC, USDCx, USDA, ALEX, DIKO
+Supports well-known tokens by symbol: sBTC, USDCx, ALEX, DIKO
 Or use the full contract ID: address.contract-name`,
       inputSchema: {
         token: z.string().describe("Token symbol (e.g., 'USDCx', 'sBTC') or contract ID"),
@@ -54,7 +54,7 @@ Or use the full contract ID: address.contract-name`,
     {
       description: `Transfer any SIP-010 token to a recipient address.
 
-Supports well-known tokens by symbol: sBTC, USDCx, USDA, ALEX, DIKO
+Supports well-known tokens by symbol: sBTC, USDCx, ALEX, DIKO
 Or use the full contract ID.`,
       inputSchema: {
         token: z.string().describe("Token symbol (e.g., 'USDCx') or contract ID"),
