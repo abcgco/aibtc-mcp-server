@@ -113,15 +113,17 @@ Add to your Claude Code settings (`~/.claude.json`):
 | `extend_stacking` | Extend stacking period |
 | `get_stacking_pool_info` | Get stacking pool details |
 
-### BNS Domains
+### BNS Domains (V1 + V2)
 | Tool | Description |
 |------|-------------|
-| `lookup_bns_name` | Resolve .btc domain to address |
+| `lookup_bns_name` | Resolve .btc domain to address (supports BNS V2) |
 | `reverse_bns_lookup` | Get .btc domain for an address |
 | `get_bns_info` | Get domain details (expiry, owner) |
-| `check_bns_availability` | Check if domain is available |
+| `check_bns_availability` | Check if domain is available (checks both V1 and V2) |
 | `get_bns_price` | Get registration price for domain |
 | `list_user_domains` | List domains owned by an address |
+
+> **Note:** BNS tools now support both BNS V1 (legacy) and BNS V2 (current) naming systems. Most `.btc` names are registered through BNS V2 at `api.bnsv2.com`.
 
 ### Smart Contracts
 | Tool | Description |
