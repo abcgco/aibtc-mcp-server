@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { registerWalletTools } from "./wallet.tools.js";
+import { registerWalletManagementTools } from "./wallet-management.tools.js";
 import { registerTransferTools } from "./transfer.tools.js";
 import { registerContractTools } from "./contract.tools.js";
 import { registerSbtcTools } from "./sbtc.tools.js";
@@ -17,6 +18,9 @@ import { registerEndpointTools } from "./endpoint.tools.js";
 export function registerAllTools(server: McpServer): void {
   // Wallet & Balance
   registerWalletTools(server);
+
+  // Wallet Management (create, import, unlock, lock, etc.)
+  registerWalletManagementTools(server);
 
   // Transfers
   registerTransferTools(server);
