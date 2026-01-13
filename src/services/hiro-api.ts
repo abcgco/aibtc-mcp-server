@@ -440,8 +440,12 @@ export class HiroApiService {
     const body = {
       sender: senderAddress,
       arguments: functionArgs.map((arg) => {
-        const serialized = Buffer.from(serializeCV(arg)).toString("hex");
-        return serialized;
+        const serialized = serializeCV(arg);
+        // serializeCV returns hex string in newer versions, Uint8Array in older
+        if (typeof serialized === "string") {
+          return serialized;
+        }
+        return Buffer.from(serialized).toString("hex");
       }),
     };
 
