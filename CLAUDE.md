@@ -262,9 +262,7 @@ Fast lookups for common facts and gotchas:
 - `nuggets/stacks.md` - Tenero API, SIWS, SIP-018 signing standards quick reference
 - `nuggets/clarity.md` - Core principles, gotchas, error handling, testing commands
 - `nuggets/cloudflare.md` - Worker deployment best practices (prefer CI/CD over direct deploy)
-- `nuggets/node.md` - Node.js and TypeScript tooling tips
 - `nuggets/github.md` - GitHub API, Actions, and Pages workflows
-- `nuggets/git.md` - Git workflow tips and commands
 
 ### Deep Reference (Context)
 Comprehensive documentation for detailed guidance:
@@ -292,9 +290,10 @@ Step-by-step operational guides:
 
 - `runbook/clarity-development.md` - Clarity dev workflows and checklists
 - `runbook/cloudflare-scaffold.md` - Cloudflare Worker setup, wrangler config, credentials, deployment patterns
-- `runbook/cloudflare-shared-logger.md` - Shared logging utilities for Cloudflare Workers
+- `runbook/aibtc-shared-logger.md` - Shared logging utilities for AIBTC services
+- `runbook/daily-summary.md` - Daily summary generation workflow
 - `runbook/setup-github-pat.md` - GitHub Personal Access Token setup
 - `runbook/setup-sprout-cron.md` - Sprout documentation cron job setup
-- `runbook/sprout-docs.md` - Sprout documentation system overview
+- `runbook/sprout-docs-inline.md` - Sprout documentation system overview
 - `runbook/sprout-docs-github-pages.md` - Documentation site deployment with GitHub Pages
 - `runbook/updating-claude-knowledge.md` - Knowledge base maintenance and sanitization guidelines
