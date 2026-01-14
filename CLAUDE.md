@@ -66,11 +66,11 @@ stx402-agent MCP Server (src/index.ts)
 - `src/api.ts` - Axios client with x402-stacks payment interceptor (supports multiple API sources)
 - `src/wallet.ts` - Wallet operations and transaction signing using @stacks/transactions
 - `src/services/wallet-manager.ts` - Managed wallet creation, encryption, and session management
-- `src/services/defi.service.ts` - ALEX DEX and Zest Protocol integrations
+- `src/services/defi.service.ts` - ALEX DEX (via alex-sdk) and Zest Protocol integrations
 - `src/endpoints/registry.ts` - Known x402 endpoint registry from both API sources
 - `src/services/bns.service.ts` - BNS name resolution (supports both V1 and V2)
 - `src/services/hiro-api.ts` - Hiro API client + BNS V2 API client
-- `src/config/contracts.ts` - Contract addresses for sBTC, ALEX, Zest, and other protocols
+- `src/config/contracts.ts` - Contract addresses and Zest asset configuration (LP tokens, oracles, decimals)
 
 ### BNS V1 vs V2
 
@@ -163,13 +163,47 @@ Add to your Claude Code MCP settings:
 - `execute_x402_endpoint` - Execute ANY x402 endpoint URL with automatic payment handling. Can use full URL or path+apiUrl.
 
 ### DeFi - ALEX DEX (Mainnet Only)
+
+Uses the official `alex-sdk` for swap operations. The SDK handles:
+- Token resolution (symbols like "STX", "ALEX" → Currency enum)
+- Route optimization
+- STX wrapping/unwrapping
+- Post conditions
+
+Tools:
 - `alex_list_pools` - **Start here!** Discover all available trading pools
-- `alex_get_swap_quote` - Get expected output for a token swap
-- `alex_swap` - Execute a token swap on ALEX AMM
+- `alex_get_swap_quote` - Get expected output for a token swap (uses `sdk.getAmountTo()`)
+- `alex_swap` - Execute a token swap (uses `sdk.runSwap()`)
 - `alex_get_pool_info` - Get liquidity pool reserves and details
 
+**Token symbols supported:** STX, WSTX, ALEX, or any token name from `fetchSwappableCurrency()`
+
 ### DeFi - Zest Protocol (Mainnet Only)
-- `zest_list_assets` - **Start here!** Lists all supported assets dynamically from the contract
+
+Uses the `pool-borrow-v2-3` contract with proper function signatures. Asset configuration in `src/config/contracts.ts` includes LP tokens and oracles for all 10 supported assets.
+
+**Supported Assets:**
+| Symbol | Token | Decimals |
+|--------|-------|----------|
+| sBTC | SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token | 8 |
+| aeUSDC | SP3Y2ZSH8P7D50B0VBTSX11S7XSG24M1VB9YFQA4K.token-aeusdc | 6 |
+| stSTX | SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststx-token | 6 |
+| wSTX | SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.wstx | 6 |
+| USDH | SPN5AKG35QZSK2M8GAMR4AFX45659RJHDW353HSG.usdh-token-v1 | 8 |
+| sUSDT | SP2XD7417HGPRTREMKF748VNEQPDRR0RMANB7X1NK.token-susdt | 6 |
+| USDA | SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.usda-token | 6 |
+| DIKO | SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-token | 6 |
+| ALEX | SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-alex | 8 |
+| stSTX-BTC | SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststxbtc-token-v2 | 6 |
+
+**Contract Function Signatures:**
+- `supply(lp, pool-reserve, asset, amount, owner)`
+- `withdraw(pool-reserve, asset, lp, oracle, assets-list, amount, owner)`
+- `borrow(pool-reserve, oracle, asset, lp, assets-list, amount, fee-calc, rate-mode, owner)`
+- `repay(asset, amount, on-behalf-of, payer)`
+
+Tools:
+- `zest_list_assets` - **Start here!** Lists all supported assets with metadata
 - `zest_get_position` - Get user's lending position (supplied/borrowed amounts)
 - `zest_supply` - Supply assets to earn interest
 - `zest_withdraw` - Withdraw supplied assets
@@ -194,9 +228,10 @@ When a user asks for something:
 | "Send 2 STX to ST1..." | `transfer_stx` with amount "2000000" |
 | "What are trending pools?" | `execute_x402_endpoint` with path="/api/pools/trending" |
 | "What pools can I trade on ALEX?" | `alex_list_pools` to discover available pairs |
-| "Swap 100 wSTX for sUSDT" | `alex_swap` with tokenX=wSTX, tokenY=sUSDT |
-| "How much sUSDT for 10 wSTX?" | `alex_get_swap_quote` for pricing |
-| "Supply 1000 stSTX to Zest" | `zest_supply` to earn lending interest |
+| "Swap 0.1 STX for ALEX" | `alex_swap` with tokenX="STX", tokenY="ALEX" (SDK handles resolution) |
+| "How much ALEX for 10 STX?" | `alex_get_swap_quote` with simple symbols |
+| "Supply 1000 stSTX to Zest" | `zest_supply` with asset="stSTX" |
+| "Borrow 100 aeUSDC from Zest" | `zest_borrow` with asset="aeUSDC" |
 | "Check my Zest position" | `zest_get_position` for supplied/borrowed |
 | "Tell me a dad joke" | `execute_x402_endpoint` with url="https://stx402.com/api/ai/dad-joke" |
 
