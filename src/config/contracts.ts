@@ -23,7 +23,8 @@ export const MAINNET_CONTRACTS = {
   ALEX_SWAP_HELPER: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.swap-helper-v1-03",
   ALEX_SWAP_BRIDGED: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.swap-helper-bridged",
   ALEX_VAULT: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.alex-vault",
-  ALEX_TOKEN: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-alex",
+  ALEX_TOKEN_NATIVE: "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-alex", // Native ALEX governance token
+  ALEX_TOKEN_AMM: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-alex", // Wrapped ALEX for AMM pools
   ALEX_WSTX: "SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.token-wstx-v2",
 
   // Zest Protocol
@@ -74,14 +75,15 @@ export function parseContractId(contractId: string): { address: string; name: st
 }
 
 /**
- * Common token contract IDs
+ * Fallback token contract IDs (used only when dynamic resolution fails)
+ * Prefer using resolveTokenSymbol() which checks user balances first
  */
 export const WELL_KNOWN_TOKENS = {
   mainnet: {
     STX: "native",
     sBTC: MAINNET_CONTRACTS.SBTC_TOKEN,
     USDCx: MAINNET_CONTRACTS.USDCX,
-    ALEX: MAINNET_CONTRACTS.ALEX_TOKEN,
+    ALEX: MAINNET_CONTRACTS.ALEX_TOKEN_NATIVE,
     wSTX: MAINNET_CONTRACTS.ALEX_WSTX,
   },
   testnet: {
