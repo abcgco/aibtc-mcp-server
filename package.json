@@ -1,7 +1,7 @@
 {
   "name": "stx402-agent",
-  "version": "2.5.0",
-  "description": "Claude Code MCP server for x402 endpoint discovery and execution with Stacks wallet integration",
+  "version": "3.0.0",
+  "description": "Remote MCP server for Stacks blockchain & x402 payments - works with Claude Code",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -11,6 +11,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "server": "bun run src/server.ts",
+    "server:dev": "bun --watch run src/server.ts",
+    "docker:build": "docker build -t stx402-agent .",
+    "docker:run": "docker run -p 3000:3000 -v stx402-data:/data stx402-agent",
+    "docker:compose": "docker-compose up",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -26,7 +31,8 @@
     "stacks",
     "blockchain",
     "crypto",
-    "payments"
+    "payments",
+    "remote-mcp"
   ],
   "author": "biwas",
   "repository": {
@@ -44,10 +50,12 @@
     "alex-sdk": "^3.2.1",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
+    "hono": "^4.7.0",
     "x402-stacks": "^1.1.1",
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.0",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
