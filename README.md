@@ -17,36 +17,20 @@ An MCP (Model Context Protocol) server that gives Claude its own Stacks wallet t
 
 ## Quick Start
 
-### Option 1: Using npx (Recommended)
+### One-Command Install
 
 ```bash
-claude mcp add stx402 npx stx402-agent -e NETWORK=testnet
+npx stx402-agent@latest --install
 ```
 
-### Option 2: Global Install
+That's it! This automatically configures Claude Code. Restart your terminal and start chatting.
 
+**For mainnet:**
 ```bash
-npm install -g stx402-agent
-claude mcp add stx402 stx402-agent -e NETWORK=testnet
+npx stx402-agent@latest --install --mainnet
 ```
 
-### Option 3: Manual Configuration
-
-Add to your Claude Code settings (`~/.claude.json`):
-
-```json
-{
-  "mcpServers": {
-    "stx402": {
-      "command": "npx",
-      "args": ["stx402-agent"],
-      "env": {
-        "NETWORK": "testnet"
-      }
-    }
-  }
-}
-```
+> **Why npx?** Using `npx stx402-agent@latest` ensures you always get the newest version automatically. Global installs (`npm install -g`) won't auto-update.
 
 ## Giving Claude a Wallet
 
@@ -322,14 +306,14 @@ You ←→ Claude ←→ stx402-agent MCP Server
 
 ## Advanced: Pre-configured Mnemonic
 
-For automated setups, you can pre-configure a mnemonic:
+For automated setups where Claude needs immediate wallet access, set the `CLIENT_MNEMONIC` environment variable in your `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "stx402": {
       "command": "npx",
-      "args": ["stx402-agent"],
+      "args": ["stx402-agent@latest"],
       "env": {
         "CLIENT_MNEMONIC": "your twenty four word mnemonic phrase",
         "NETWORK": "testnet"
@@ -339,7 +323,7 @@ For automated setups, you can pre-configure a mnemonic:
 }
 ```
 
-This gives Claude immediate access without the wallet creation flow.
+This bypasses the wallet creation flow - Claude has immediate access to transact.
 
 ## Development
 
