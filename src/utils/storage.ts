@@ -3,17 +3,52 @@ import path from "path";
 import os from "os";
 import type { EncryptedData } from "./encryption.js";
 import type { Network } from "../config/networks.js";
+import { getUserApiKey, hasUserContext } from "../context.js";
 
 /**
  * Storage directory location
+ *
+ * In remote mode (HTTP server): /data/users/{apiKey}/
+ * In local mode (stdio):        ~/.stx402/
  */
-const STORAGE_DIR = path.join(os.homedir(), ".stx402");
-const WALLETS_DIR = path.join(STORAGE_DIR, "wallets");
-const WALLET_INDEX_FILE = path.join(STORAGE_DIR, "wallets.json");
-const CONFIG_FILE = path.join(STORAGE_DIR, "config.json");
+function getBaseStorageDir(): string {
+  // Check if we're in remote mode with a user context
+  if (hasUserContext()) {
+    try {
+      const apiKey = getUserApiKey();
+      // Use /data for Docker, or DATA_DIR env var, or fallback to ~/.stx402-server
+      const baseDir =
+        process.env.DATA_DIR ||
+        (process.env.DOCKER === "true" ? "/data" : path.join(os.homedir(), ".stx402-server"));
+      return path.join(baseDir, "users", apiKey);
+    } catch {
+      // Fall through to local mode
+    }
+  }
+
+  // Local mode (stdio transport)
+  return path.join(os.homedir(), ".stx402");
+}
+
+// Dynamic path getters
+function getStorageDirPath(): string {
+  return getBaseStorageDir();
+}
+
+function getWalletsDirPath(): string {
+  return path.join(getBaseStorageDir(), "wallets");
+}
+
+function getWalletIndexFilePath(): string {
+  return path.join(getBaseStorageDir(), "wallets.json");
+}
+
+function getConfigFilePath(): string {
+  return path.join(getBaseStorageDir(), "config.json");
+}
 
 /**
- * 
+ *
  * Wallet metadata (stored in index, no sensitive data)
  */
 export interface WalletMetadata {
@@ -58,7 +93,7 @@ const CURRENT_CONFIG_VERSION = 1;
  * Get storage directory path
  */
 export function getStorageDir(): string {
-  return STORAGE_DIR;
+  return getStorageDirPath();
 }
 
 /**
@@ -66,7 +101,7 @@ export function getStorageDir(): string {
  */
 export async function storageExists(): Promise<boolean> {
   try {
-    await fs.access(STORAGE_DIR);
+    await fs.access(getStorageDirPath());
     return true;
   } catch {
     return false;
@@ -77,12 +112,16 @@ export async function storageExists(): Promise<boolean> {
  * Initialize storage directory structure
  */
 export async function initializeStorage(): Promise<void> {
+  const walletsDir = getWalletsDirPath();
+  const walletIndexFile = getWalletIndexFilePath();
+  const configFile = getConfigFilePath();
+
   // Create directories
-  await fs.mkdir(WALLETS_DIR, { recursive: true, mode: 0o700 });
+  await fs.mkdir(walletsDir, { recursive: true, mode: 0o700 });
 
   // Create wallet index if it doesn't exist
   try {
-    await fs.access(WALLET_INDEX_FILE);
+    await fs.access(walletIndexFile);
   } catch {
     const defaultIndex: WalletIndex = {
       version: CURRENT_INDEX_VERSION,
@@ -93,7 +132,7 @@ export async function initializeStorage(): Promise<void> {
 
   // Create config if it doesn't exist
   try {
-    await fs.access(CONFIG_FILE);
+    await fs.access(configFile);
   } catch {
     const defaultConfig: AppConfig = {
       version: CURRENT_CONFIG_VERSION,
@@ -109,7 +148,8 @@ export async function initializeStorage(): Promise<void> {
  */
 export async function readWalletIndex(): Promise<WalletIndex> {
   try {
-    const content = await fs.readFile(WALLET_INDEX_FILE, "utf8");
+    const walletIndexFile = getWalletIndexFilePath();
+    const content = await fs.readFile(walletIndexFile, "utf8");
     return JSON.parse(content) as WalletIndex;
   } catch {
     return {
@@ -123,11 +163,12 @@ export async function readWalletIndex(): Promise<WalletIndex> {
  * Write wallet index (atomic write with temp file)
  */
 export async function writeWalletIndex(index: WalletIndex): Promise<void> {
-  const tempFile = `${WALLET_INDEX_FILE}.tmp`;
+  const walletIndexFile = getWalletIndexFilePath();
+  const tempFile = `${walletIndexFile}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(index, null, 2), {
     mode: 0o600,
   });
-  await fs.rename(tempFile, WALLET_INDEX_FILE);
+  await fs.rename(tempFile, walletIndexFile);
 }
 
 /**
@@ -135,7 +176,8 @@ export async function writeWalletIndex(index: WalletIndex): Promise<void> {
  */
 export async function readAppConfig(): Promise<AppConfig> {
   try {
-    const content = await fs.readFile(CONFIG_FILE, "utf8");
+    const configFile = getConfigFilePath();
+    const content = await fs.readFile(configFile, "utf8");
     return JSON.parse(content) as AppConfig;
   } catch {
     return {
@@ -150,18 +192,19 @@ export async function readAppConfig(): Promise<AppConfig> {
  * Write app config (atomic write)
  */
 export async function writeAppConfig(config: AppConfig): Promise<void> {
-  const tempFile = `${CONFIG_FILE}.tmp`;
+  const configFile = getConfigFilePath();
+  const tempFile = `${configFile}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(config, null, 2), {
     mode: 0o600,
   });
-  await fs.rename(tempFile, CONFIG_FILE);
+  await fs.rename(tempFile, configFile);
 }
 
 /**
  * Get keystore file path for a wallet
  */
 function getKeystorePath(walletId: string): string {
-  return path.join(WALLETS_DIR, walletId, "keystore.json");
+  return path.join(getWalletsDirPath(), walletId, "keystore.json");
 }
 
 /**
@@ -180,7 +223,7 @@ export async function writeKeystore(
   walletId: string,
   keystore: KeystoreFile
 ): Promise<void> {
-  const walletDir = path.join(WALLETS_DIR, walletId);
+  const walletDir = path.join(getWalletsDirPath(), walletId);
   await fs.mkdir(walletDir, { recursive: true, mode: 0o700 });
 
   const keystorePath = getKeystorePath(walletId);
@@ -195,7 +238,7 @@ export async function writeKeystore(
  * Delete a wallet directory and its contents
  */
 export async function deleteWalletStorage(walletId: string): Promise<void> {
-  const walletDir = path.join(WALLETS_DIR, walletId);
+  const walletDir = path.join(getWalletsDirPath(), walletId);
   await fs.rm(walletDir, { recursive: true, force: true });
 }
 
