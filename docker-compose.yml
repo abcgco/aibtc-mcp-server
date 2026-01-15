@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  stx402-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stx402-agent
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DOCKER=true
+      - DATA_DIR=/data
+      - PORT=3000
+      - HOST=0.0.0.0
+      - NETWORK=${NETWORK:-testnet}
+      - API_URL=${API_URL:-https://x402.biwas.xyz}
+      # Optional: Set CLIENT_MNEMONIC for server-wide default wallet
+      # - CLIENT_MNEMONIC=${CLIENT_MNEMONIC}
+    volumes:
+      # Persistent storage for user wallets
+      - stx402-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  stx402-data:
+    driver: local
