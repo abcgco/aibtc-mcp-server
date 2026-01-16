@@ -17,18 +17,16 @@ export function getApiBaseUrl(network: Network): string {
     : "https://api.testnet.hiro.so";
 }
 
-export function getExplorerUrl(network: Network): string {
-  return "https://explorer.hiro.so";
-}
+export const EXPLORER_URL = "https://explorer.hiro.so";
 
 export function getExplorerTxUrl(txid: string, network: Network): string {
-  return `${getExplorerUrl(network)}/txid/${txid}?chain=${network}`;
+  return `${EXPLORER_URL}/txid/${txid}?chain=${network}`;
 }
 
 export function getExplorerAddressUrl(address: string, network: Network): string {
-  return `${getExplorerUrl(network)}/address/${address}?chain=${network}`;
+  return `${EXPLORER_URL}/address/${address}?chain=${network}`;
 }
 
 export function getExplorerContractUrl(contractId: string, network: Network): string {
-  return `${getExplorerUrl(network)}/txid/${contractId}?chain=${network}`;
+  return `${EXPLORER_URL}/txid/${contractId}?chain=${network}`;
 }
