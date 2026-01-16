@@ -18,9 +18,7 @@ export function getApiBaseUrl(network: Network): string {
 }
 
 export function getExplorerUrl(network: Network): string {
-  return network === "mainnet"
-    ? "https://explorer.stacks.co"
-    : "https://explorer.stacks.co";
+  return "https://explorer.hiro.so";
 }
 
 export function getExplorerTxUrl(txid: string, network: Network): string {
