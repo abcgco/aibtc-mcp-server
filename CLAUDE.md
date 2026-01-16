@@ -28,6 +28,25 @@ npm run dev       # Run in development mode with tsx
 npm start         # Run compiled server
 ```
 
+## Publishing & Releases
+
+**After major changes or version updates, publish a new release:**
+
+```bash
+npm version patch   # or minor/major depending on changes
+git push && git push --tags
+```
+
+This triggers GitHub Actions to automatically:
+1. Build the project
+2. Publish to npm
+3. Create a GitHub release with changelog
+
+**Version Guidelines:**
+- `patch` (2.6.0 → 2.6.1): Bug fixes, CI changes, docs
+- `minor` (2.6.0 → 2.7.0): New features, new tools
+- `major` (2.6.0 → 3.0.0): Breaking changes
+
 ## Code Principles
 
 **CRITICAL: Follow these principles when writing code in this repository:**
