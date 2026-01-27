@@ -22,7 +22,7 @@ IMPORTANT: Save the mnemonic securely - it will only be shown once!`,
         password: z
           .string()
           .min(8)
-          .describe("Password to protect the wallet (minimum 8 characters)"),
+          .describe("Password to protect the wallet (minimum 8 characters) - WARNING: sensitive value"),
         network: z
           .enum(["mainnet", "testnet"])
           .optional()
@@ -62,11 +62,11 @@ IMPORTANT: Save the mnemonic securely - it will only be shown once!`,
 The wallet is encrypted locally and stored in ~/.aibtc/.`,
       inputSchema: {
         name: z.string().describe("Name for the wallet"),
-        mnemonic: z.string().describe("24-word BIP39 mnemonic phrase"),
+        mnemonic: z.string().describe("24-word BIP39 mnemonic phrase - WARNING: sensitive value"),
         password: z
           .string()
           .min(8)
-          .describe("Password to protect the wallet (minimum 8 characters)"),
+          .describe("Password to protect the wallet (minimum 8 characters) - WARNING: sensitive value"),
         network: z
           .enum(["mainnet", "testnet"])
           .optional()
@@ -109,7 +109,7 @@ If no wallet ID is provided, unlocks the active wallet.`,
           .string()
           .optional()
           .describe("Wallet ID to unlock (uses active wallet if not specified)"),
-        password: z.string().describe("Wallet password"),
+        password: z.string().describe("Wallet password - WARNING: sensitive value"),
       },
     },
     async ({ walletId, password }) => {
@@ -259,7 +259,7 @@ Note: The new wallet will need to be unlocked before use.`,
 WARNING: This cannot be undone! Make sure you have backed up your mnemonic.`,
       inputSchema: {
         walletId: z.string().describe("Wallet ID to delete"),
-        password: z.string().describe("Wallet password for confirmation"),
+        password: z.string().describe("Wallet password for confirmation - WARNING: sensitive value"),
         confirm: z
           .literal("DELETE")
           .describe("Type 'DELETE' to confirm deletion"),
@@ -306,7 +306,7 @@ WARNING: Only use this in a secure environment! Anyone with the mnemonic can acc
           .string()
           .optional()
           .describe("Wallet ID to export (uses active wallet if not specified)"),
-        password: z.string().describe("Wallet password"),
+        password: z.string().describe("Wallet password - WARNING: sensitive value"),
         confirm: z
           .literal("I_UNDERSTAND_THE_RISKS")
           .describe("Type 'I_UNDERSTAND_THE_RISKS' to confirm"),

@@ -71,12 +71,6 @@ export async function createApiClient(baseUrl?: string): Promise<AxiosInstance> 
     (response) => response,
     (error) => {
       const data = error?.response?.data;
-      if (error?.response?.status === 402) {
-        console.error(
-          "x402 debug 402 payload",
-          typeof data === "string" ? data : JSON.stringify(data)
-        );
-      }
       if (typeof data === "string") {
         const trimmed = data.trim();
         if (trimmed) {

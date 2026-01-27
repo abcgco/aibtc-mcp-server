@@ -1,3 +1,5 @@
+import { redactSensitive } from "./redact.js";
+
 /**
  * Base error class for aibtc-mcp-server
  */
@@ -116,14 +118,14 @@ export class InvalidMnemonicError extends WalletError {
 export function formatError(error: unknown): { message: string; code?: string; details?: unknown } {
   if (error instanceof AibtcError) {
     return {
-      message: error.message,
+      message: redactSensitive(error.message),
       code: error.code,
       details: error.details,
     };
   }
 
   if (error instanceof Error) {
-    return { message: error.message };
+    return { message: redactSensitive(error.message) };
   }
 
   return { message: "Unknown error occurred" };

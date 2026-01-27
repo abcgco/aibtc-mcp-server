@@ -3,11 +3,17 @@ import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import { createRequire } from "module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { registerAllTools } from "./tools/index.js";
 import { NETWORK, API_URL } from "./config/index.js";
+import { redactSensitive } from "./utils/redact.js";
+import { initializeStorage } from "./utils/storage.js";
+
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json");
 
 // =============================================================================
 // AUTO-INSTALL FOR CLAUDE CODE
@@ -80,7 +86,7 @@ if (process.argv[2] === "yield-hunter") {
       // Don't exit - daemon runs until interrupted
     })
     .catch((error) => {
-      console.error("❌ Yield Hunter error:", error.message);
+      console.error("❌ Yield Hunter error:", redactSensitive(error.message));
       process.exit(1);
     });
 }
@@ -89,20 +95,21 @@ else if (process.argv.includes("--install") || process.argv.includes("install"))
   installToClaudeCode()
     .then(() => process.exit(0))
     .catch((error) => {
-      console.error("❌ Installation failed:", error.message);
+      console.error("❌ Installation failed:", redactSensitive(error.message));
       process.exit(1);
     });
 } else {
   // Normal MCP server mode
   const server = new McpServer({
     name: "aibtc-mcp-server",
-    version: "1.0.0",
+    version: packageJson.version,
   });
 
   // Register all tools from the modular registry
   registerAllTools(server);
 
   async function main() {
+    await initializeStorage();
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error("aibtc-mcp-server running on stdio");
@@ -111,7 +118,7 @@ else if (process.argv.includes("--install") || process.argv.includes("install"))
   }
 
   main().catch((error) => {
-    console.error("Fatal error:", error);
+    console.error("Fatal error:", redactSensitive(String(error)));
     process.exit(1);
   });
 }

@@ -1,5 +1,4 @@
 import fs from "fs/promises";
-import { existsSync, renameSync } from "fs";
 import path from "path";
 import os from "os";
 import type { EncryptedData } from "./encryption.js";
@@ -18,19 +17,18 @@ const CONFIG_FILE = path.join(STORAGE_DIR, "config.json");
 /**
  * Migrate storage from ~/.stx402/ to ~/.aibtc/ (one-time migration)
  */
-function migrateStorageDirectory(): void {
-  if (existsSync(OLD_STORAGE_DIR) && !existsSync(STORAGE_DIR)) {
-    try {
-      renameSync(OLD_STORAGE_DIR, STORAGE_DIR);
+async function migrateStorage(): Promise<void> {
+  try {
+    const oldExists = await fs.access(OLD_STORAGE_DIR).then(() => true).catch(() => false);
+    const newExists = await fs.access(STORAGE_DIR).then(() => true).catch(() => false);
+    if (oldExists && !newExists) {
+      await fs.rename(OLD_STORAGE_DIR, STORAGE_DIR);
       console.error(`Migrated wallet storage from ${OLD_STORAGE_DIR} to ${STORAGE_DIR}`);
-    } catch (error) {
-      console.error(`Failed to migrate storage directory: ${error}`);
     }
+  } catch (error) {
+    console.error(`Failed to migrate storage directory: ${error}`);
   }
 }
-
-// Run migration on module load
-migrateStorageDirectory();
 
 /**
  * 
@@ -97,6 +95,7 @@ export async function storageExists(): Promise<boolean> {
  * Initialize storage directory structure
  */
 export async function initializeStorage(): Promise<void> {
+  await migrateStorage();
   // Create directories
   await fs.mkdir(WALLETS_DIR, { recursive: true, mode: 0o700 });
 

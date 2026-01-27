@@ -3,12 +3,12 @@ import { z } from "zod";
 /**
  * Stacks address validation regex
  */
-const STACKS_ADDRESS_REGEX = /^S[PM][A-Z0-9]{38,}$/;
+const STACKS_ADDRESS_REGEX = /^S[PMT][A-Z0-9]{38,}$/;
 
 /**
  * Contract ID validation regex (address.contract-name)
  */
-const CONTRACT_ID_REGEX = /^S[PM][A-Z0-9]{38,}\.[a-zA-Z][a-zA-Z0-9-]*$/;
+const CONTRACT_ID_REGEX = /^S[PMT][A-Z0-9]{38,}\.[a-zA-Z][a-zA-Z0-9-]*$/;
 
 /**
  * Transaction ID validation regex (64 hex chars)

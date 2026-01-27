@@ -20,19 +20,33 @@ import {
 } from "@stacks/transactions";
 import { StacksNetworkName } from "@stacks/network";
 
+/**
+ * @deprecated This module is superseded by modular replacements.
+ * - mnemonicToAccount → src/services/x402.service.ts
+ * - transferStx, callContract, deployContract, sign*, broadcast* → src/transactions/builder.ts
+ * - getAccountInfo, getStxBalance, getTransactionStatus → src/services/hiro-api.ts
+ * - parseArgToClarityValue → src/transactions/clarity-values.ts
+ * - Network, getStacksNetwork, getApiBaseUrl → src/config/networks.ts
+ * This file will be removed in a future version.
+ */
+
+/** @deprecated Use Network type from src/config/networks.ts */
 export type Network = "mainnet" | "testnet";
 
+/** @deprecated Use Account type from src/services/x402.service.ts */
 export interface Account {
   address: string;
   privateKey: string;
   network: Network;
 }
 
+/** @deprecated Use TransactionResult from src/transactions/builder.ts */
 export interface TransferResult {
   txid: string;
   rawTx: string;
 }
 
+/** @deprecated Use ContractCallOptions from src/transactions/builder.ts */
 export interface ContractCallOptions {
   contractAddress: string;
   contractName: string;
@@ -41,11 +55,13 @@ export interface ContractCallOptions {
   postConditionMode?: PostConditionMode;
 }
 
+/** @deprecated Use ContractDeployOptions from src/transactions/builder.ts */
 export interface ContractDeployOptions {
   contractName: string;
   codeBody: string;
 }
 
+/** @deprecated Use mnemonicToAccount from src/services/x402.service.ts */
 export async function mnemonicToAccount(
   mnemonic: string,
   network: Network
@@ -65,10 +81,12 @@ export async function mnemonicToAccount(
   };
 }
 
+/** @deprecated Use getStacksNetwork from src/config/networks.ts */
 export function getStacksNetwork(network: Network): StacksNetworkName {
   return network === "mainnet" ? "mainnet" : "testnet";
 }
 
+/** @deprecated Use getApiBaseUrl from src/config/networks.ts */
 export function getApiBaseUrl(network: Network): string {
   return network === "mainnet"
     ? "https://api.mainnet.hiro.so"
@@ -77,6 +95,7 @@ export function getApiBaseUrl(network: Network): string {
 
 /**
  * Get account info including nonce and balance from the Stacks API
+ * @deprecated Use HiroApiService.getAccountInfo from src/services/hiro-api.ts
  */
 export async function getAccountInfo(
   address: string,
@@ -98,6 +117,7 @@ export async function getAccountInfo(
 
 /**
  * Get STX balance for an address
+ * @deprecated Use HiroApiService.getStxBalance from src/services/hiro-api.ts
  */
 export async function getStxBalance(
   address: string,
@@ -119,6 +139,7 @@ export async function getStxBalance(
 
 /**
  * Transfer STX tokens to a recipient
+ * @deprecated Use TransactionBuilder.transferStx from src/transactions/builder.ts
  */
 export async function transferStx(
   account: Account,
@@ -155,6 +176,7 @@ export async function transferStx(
 
 /**
  * Call a smart contract function
+ * @deprecated Use TransactionBuilder.callContract from src/transactions/builder.ts
  */
 export async function callContract(
   account: Account,
@@ -191,6 +213,7 @@ export async function callContract(
 
 /**
  * Deploy a smart contract
+ * @deprecated Use TransactionBuilder.deployContract from src/transactions/builder.ts
  */
 export async function deployContract(
   account: Account,
@@ -224,6 +247,7 @@ export async function deployContract(
 
 /**
  * Sign a transaction without broadcasting (for offline signing)
+ * @deprecated Use TransactionBuilder.signStxTransfer from src/transactions/builder.ts
  */
 export async function signStxTransfer(
   account: Account,
@@ -249,6 +273,7 @@ export async function signStxTransfer(
 
 /**
  * Sign a contract call without broadcasting
+ * @deprecated Use TransactionBuilder.signContractCall from src/transactions/builder.ts
  */
 export async function signContractCall(
   account: Account,
@@ -274,6 +299,7 @@ export async function signContractCall(
 
 /**
  * Broadcast a pre-signed transaction
+ * @deprecated Use TransactionBuilder.broadcastSignedTransaction from src/transactions/builder.ts
  */
 export async function broadcastSignedTransaction(
   signedTx: string,
@@ -301,6 +327,7 @@ export async function broadcastSignedTransaction(
 
 /**
  * Get transaction status
+ * @deprecated Use HiroApiService.getTransactionStatus from src/services/hiro-api.ts
  */
 export async function getTransactionStatus(
   txid: string,
@@ -331,6 +358,7 @@ export async function getTransactionStatus(
 /**
  * Parse a JSON argument into a ClarityValue
  * Supports: string, number, boolean, principal, buffer, list, tuple, optional
+ * @deprecated Use parseArgToClarityValue from src/transactions/clarity-values.ts
  */
 export function parseArgToClarityValue(arg: unknown): ClarityValue {
   if (arg === null || arg === undefined) {
