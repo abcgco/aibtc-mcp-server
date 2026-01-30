@@ -360,4 +360,66 @@ describe("WalletManager", () => {
       expect(activeId).toBe(wallet2.walletId);
     });
   });
+
+  describe("Bitcoin address lifecycle integration", () => {
+    it("should maintain consistent Bitcoin address throughout wallet lifecycle", async () => {
+      // Step 1: Create wallet and verify Bitcoin address in metadata
+      const created = await walletManager.createWallet(
+        "lifecycle-test",
+        "password123"
+      );
+      const originalMnemonic = created.mnemonic;
+
+      const walletsAfterCreate = await walletManager.listWallets();
+      expect(walletsAfterCreate).toHaveLength(1);
+      const btcAddressFromCreate = walletsAfterCreate[0].btcAddress;
+      expect(btcAddressFromCreate).toBeDefined();
+      expect(btcAddressFromCreate).toMatch(/^tb1q[a-z0-9]{38,}$/);
+
+      // Step 2: Unlock wallet and verify Bitcoin address in Account matches metadata
+      const account = await walletManager.unlock(
+        created.walletId,
+        "password123"
+      );
+      expect(account.btcAddress).toBeDefined();
+      expect(account.btcAddress).toBe(btcAddressFromCreate);
+
+      // Verify session info also includes Bitcoin address
+      const sessionInfo = walletManager.getSessionInfo();
+      expect(sessionInfo?.btcAddress).toBe(btcAddressFromCreate);
+
+      // Step 3: Lock wallet and verify state clears properly
+      walletManager.lock();
+      expect(walletManager.isUnlocked()).toBe(false);
+      expect(walletManager.getActiveAccount()).toBeNull();
+      expect(walletManager.getSessionInfo()).toBeNull();
+
+      // Step 4: Reset storage and import same wallet
+      inMemoryWalletIndex.wallets = [];
+      inMemoryKeystores.clear();
+
+      const imported = await walletManager.importWallet(
+        "imported-lifecycle",
+        originalMnemonic,
+        "newpassword456"
+      );
+
+      // Step 5: Verify Bitcoin address is consistent across create/import
+      const walletsAfterImport = await walletManager.listWallets();
+      expect(walletsAfterImport).toHaveLength(1);
+      const btcAddressFromImport = walletsAfterImport[0].btcAddress;
+      expect(btcAddressFromImport).toBe(btcAddressFromCreate);
+
+      // Step 6: Unlock imported wallet and verify Bitcoin address still matches
+      const importedAccount = await walletManager.unlock(
+        imported.walletId,
+        "newpassword456"
+      );
+      expect(importedAccount.btcAddress).toBe(btcAddressFromCreate);
+
+      // Final verification: All Bitcoin addresses match across entire lifecycle
+      expect(btcAddressFromCreate).toBe(btcAddressFromImport);
+      expect(account.btcAddress).toBe(importedAccount.btcAddress);
+    });
+  });
 });
