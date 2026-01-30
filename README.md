@@ -98,6 +98,34 @@ Claude's wallets are stored locally on your machine:
 - Mnemonics never stored in plaintext
 - File permissions set to owner-only (0600)
 
+## Bitcoin Address Derivation
+
+Each wallet automatically derives both a **Stacks address** and a **Bitcoin address** from the same mnemonic using BIP39/BIP32 standards.
+
+**Derivation Paths (BIP84):**
+- Mainnet: `m/84'/0'/0'/0/0` (Bitcoin coin type 0)
+- Testnet: `m/84'/1'/0'/0/0` (Bitcoin testnet coin type 1)
+
+**Address Format:**
+- Mainnet: `bc1q...` (Native SegWit P2WPKH)
+- Testnet: `tb1q...` (Native SegWit P2WPKH)
+
+**Current Support:**
+- Read-only Bitcoin address derivation
+- Same mnemonic produces both Stacks and Bitcoin addresses
+- Bitcoin address included in wallet status and info
+- No Bitcoin signing or transaction support (yet)
+
+**Example:**
+```
+You: Create a wallet called "my-wallet"
+Claude: I've created a wallet with:
+        Stacks address: ST1ABC...
+        Bitcoin address: bc1q...
+```
+
+Both addresses are derived from the same recovery phrase, making it easy to manage both Layer 1 (Bitcoin) and Layer 2 (Stacks) assets.
+
 ## Available Tools (50+ total)
 
 ### Wallet Management
@@ -111,13 +139,13 @@ Claude's wallets are stored locally on your machine:
 | `wallet_switch` | Switch Claude to a different wallet |
 | `wallet_delete` | Delete a wallet |
 | `wallet_export` | Export wallet mnemonic |
-| `wallet_status` | Check if Claude's wallet is ready |
+| `wallet_status` | Check if Claude's wallet is ready (includes Stacks and Bitcoin addresses) |
 | `wallet_set_timeout` | Set how long wallet stays unlocked |
 
 ### Wallet & Balance
 | Tool | Description |
 |------|-------------|
-| `get_wallet_info` | Get Claude's wallet address and status |
+| `get_wallet_info` | Get Claude's wallet addresses (Stacks + Bitcoin) and status |
 | `get_stx_balance` | Get STX balance for any address |
 
 ### STX Transfers
