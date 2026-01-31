@@ -13,6 +13,11 @@ export interface Account {
   address: string;
   btcAddress?: string;
   privateKey: string;
+  /**
+   * Bitcoin private key as raw bytes (32 bytes) for signing BTC transactions.
+   * SECURITY: Never serialize to WIF/hex. Only held in memory during session.
+   */
+  btcPrivateKey?: Uint8Array;
   network: Network;
 }
 

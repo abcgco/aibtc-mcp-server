@@ -25,7 +25,7 @@ import {
 } from "../utils/errors.js";
 import { NETWORK, type Network } from "../config/networks.js";
 import type { Account } from "../transactions/builder.js";
-import { deriveBitcoinAddress } from "../utils/bitcoin.js";
+import { deriveBitcoinAddress, deriveBitcoinKeyPair } from "../utils/bitcoin.js";
 
 /**
  * Session state for unlocked wallet
@@ -258,13 +258,17 @@ class WalletManager {
     const stacksAccount = wallet.accounts[0];
     const address = getStxAddress(stacksAccount, walletMeta.network);
 
-    // Derive Bitcoin address
-    const { address: btcAddress } = deriveBitcoinAddress(mnemonic, walletMeta.network);
+    // Derive Bitcoin key pair (includes private key for signing)
+    const { address: btcAddress, privateKey: btcPrivateKey } = deriveBitcoinKeyPair(
+      mnemonic,
+      walletMeta.network
+    );
 
     const account: Account = {
       address,
       btcAddress,
       privateKey: stacksAccount.stxPrivateKey,
+      btcPrivateKey,
       network: walletMeta.network,
     };
 
