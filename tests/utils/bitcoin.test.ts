@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveBitcoinAddress } from "../../src/utils/bitcoin.js";
+import { deriveBitcoinAddress, deriveBitcoinKeyPair } from "../../src/utils/bitcoin.js";
 
 describe("bitcoin", () => {
   describe("deriveBitcoinAddress", () => {
@@ -120,6 +120,115 @@ describe("bitcoin", () => {
       // Different from mainnet (which uses coin type 0)
       expect(result.address).not.toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
       expect(result.address).toMatch(/^tb1q/);
+    });
+  });
+
+  describe("deriveBitcoinKeyPair", () => {
+    // BIP84 test vector from https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki
+    const TEST_MNEMONIC =
+      "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    it("should return private key as Uint8Array", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      expect(result.privateKey).toBeInstanceOf(Uint8Array);
+    });
+
+    it("should return private key of correct length (32 bytes)", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      // Private key must be 32 bytes (256 bits)
+      expect(result.privateKey.length).toBe(32);
+    });
+
+    it("should return same address as deriveBitcoinAddress", () => {
+      const addressResult = deriveBitcoinAddress(TEST_MNEMONIC, "mainnet");
+      const keyPairResult = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      expect(keyPairResult.address).toBe(addressResult.address);
+      expect(keyPairResult.publicKey).toBe(addressResult.publicKey);
+    });
+
+    it("should derive correct address for BIP84 test vector", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      // From BIP84 test vector: m/84'/0'/0'/0/0
+      expect(result.address).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
+    });
+
+    it("should derive deterministic keys for same mnemonic", () => {
+      const result1 = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+      const result2 = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      expect(result1.address).toBe(result2.address);
+      expect(result1.publicKey).toBe(result2.publicKey);
+
+      // Compare private keys byte-by-byte
+      expect(result1.privateKey.length).toBe(result2.privateKey.length);
+      for (let i = 0; i < result1.privateKey.length; i++) {
+        expect(result1.privateKey[i]).toBe(result2.privateKey[i]);
+      }
+    });
+
+    it("should derive different keys for mainnet vs testnet", () => {
+      const mainnet = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+      const testnet = deriveBitcoinKeyPair(TEST_MNEMONIC, "testnet");
+
+      // Addresses should be different
+      expect(mainnet.address).not.toBe(testnet.address);
+      expect(mainnet.address).toMatch(/^bc1q/);
+      expect(testnet.address).toMatch(/^tb1q/);
+
+      // Private keys should be different (different derivation paths)
+      let keysAreDifferent = false;
+      for (let i = 0; i < mainnet.privateKey.length; i++) {
+        if (mainnet.privateKey[i] !== testnet.privateKey[i]) {
+          keysAreDifferent = true;
+          break;
+        }
+      }
+      expect(keysAreDifferent).toBe(true);
+    });
+
+    it("should return all expected properties", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      expect(result).toHaveProperty("address");
+      expect(result).toHaveProperty("publicKey");
+      expect(result).toHaveProperty("privateKey");
+
+      // Verify types
+      expect(typeof result.address).toBe("string");
+      expect(typeof result.publicKey).toBe("string");
+      expect(result.privateKey).toBeInstanceOf(Uint8Array);
+    });
+
+    it("should handle 24-word mnemonic", () => {
+      const mnemonic24 =
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
+
+      const result = deriveBitcoinKeyPair(mnemonic24, "mainnet");
+
+      expect(result.address).toBeDefined();
+      expect(result.address).toMatch(/^bc1q/);
+      expect(result.publicKey).toBeDefined();
+      expect(result.privateKey).toBeInstanceOf(Uint8Array);
+      expect(result.privateKey.length).toBe(32);
+    });
+
+    it("private key bytes should not be all zeros", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      const allZeros = result.privateKey.every((byte) => byte === 0);
+      expect(allZeros).toBe(false);
+    });
+
+    it("private key bytes should not be all same value", () => {
+      const result = deriveBitcoinKeyPair(TEST_MNEMONIC, "mainnet");
+
+      const firstByte = result.privateKey[0];
+      const allSame = result.privateKey.every((byte) => byte === firstByte);
+      expect(allSame).toBe(false);
     });
   });
 });
