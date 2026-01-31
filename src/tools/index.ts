@@ -18,6 +18,7 @@ import { registerScaffoldTools } from "./scaffold.tools.js";
 import { registerOpenRouterTools } from "./openrouter.tools.js";
 import { registerYieldHunterTools } from "./yield-hunter.tools.js";
 import { registerPillarTools } from "./pillar.tools.js";
+import { registerBitcoinTools } from "./bitcoin.tools.js";
 
 /**
  * Register all tools with the MCP server
@@ -73,4 +74,7 @@ export function registerAllTools(server: McpServer): void {
 
   // Pillar (handoff to frontend + polling)
   registerPillarTools(server);
+
+  // Bitcoin L1 (read-only: balance, fees, UTXOs)
+  registerBitcoinTools(server);
 }
