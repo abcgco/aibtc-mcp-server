@@ -18,6 +18,8 @@ import { registerBnsTools } from "./bns.tools.js";
 // Layer 2b: DeFi (Advanced)
 import { registerDefiTools } from "./defi.tools.js";
 import { registerStackingTools } from "./stacking.tools.js";
+import { registerVelarTools } from "./velar.tools.js";
+import { registerSwapRouterTools } from "./swap-router.tools.js";
 // TODO: Re-enable when Bitflow API key integration is complete
 // import { registerBitflowTools } from "./bitflow.tools.js";
 
@@ -70,6 +72,8 @@ export function registerAllTools(server: McpServer): void {
   // =========================================================================
   registerDefiTools(server);
   registerStackingTools(server);
+  registerVelarTools(server);
+  registerSwapRouterTools(server);
   // registerBitflowTools(server); // Disabled until API key integration
 
   // =========================================================================
