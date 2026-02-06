@@ -26,7 +26,7 @@ import {
 } from "../utils/errors.js";
 import { NETWORK, type Network } from "../config/networks.js";
 import type { Account } from "../transactions/builder.js";
-import { deriveBitcoinAddress, deriveBitcoinKeyPair, deriveTaprootAddress } from "../utils/bitcoin.js";
+import { deriveBitcoinAddress, deriveBitcoinKeyPair, deriveTaprootAddress, deriveBitcoinFromStacksKey } from "../utils/bitcoin.js";
 
 /**
  * Session state for unlocked wallet
@@ -104,7 +104,8 @@ class WalletManager {
 
     const stacksAccount = wallet.accounts[0];
     const stacksAddress = getStxAddress(stacksAccount, walletNetwork);
-    const { address: bitcoinAddress } = deriveBitcoinAddress(mnemonic, walletNetwork);
+    // Use Stacks key-based derivation for AIBTC platform compatibility
+    const { address: bitcoinAddress } = deriveBitcoinFromStacksKey(stacksAccount.stxPrivateKey, walletNetwork);
     const { address: taprootAddress } = deriveTaprootAddress(mnemonic, walletNetwork);
 
     const encrypted = await encrypt(mnemonic, password);
@@ -213,12 +214,12 @@ class WalletManager {
     const stacksAccount = wallet.accounts[0];
     const address = getStxAddress(stacksAccount, walletMeta.network);
 
-    // Derive Bitcoin key pair (includes private key for signing)
+    // Derive Bitcoin key pair using Stacks key (AIBTC platform compatible)
     const {
       address: btcAddress,
       privateKey: btcPrivateKey,
       publicKeyBytes: btcPublicKey,
-    } = deriveBitcoinKeyPair(mnemonic, walletMeta.network);
+    } = deriveBitcoinFromStacksKey(stacksAccount.stxPrivateKey, walletMeta.network);
 
     // Derive Taproot address for receiving inscriptions
     const { address: taprootAddress } = deriveTaprootAddress(mnemonic, walletMeta.network);

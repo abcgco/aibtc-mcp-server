@@ -1,6 +1,7 @@
 import { mnemonicToSeedSync } from "@scure/bip39";
 import { HDKey } from "@scure/bip32";
 import * as btc from "@scure/btc-signer";
+import { secp256k1 } from "@noble/curves/secp256k1.js";
 import type { Network } from "../config/networks.js";
 
 /**
@@ -287,5 +288,48 @@ export function deriveTaprootAddress(
   return {
     address: p2tr.address,
     internalPubKey,
+  };
+}
+
+/**
+ * Derive Bitcoin address from Stacks private key (AIBTC platform compatible)
+ *
+ * This derivation method matches the AIBTC agent registration tool:
+ * - Takes the Stacks private key (from @stacks/wallet-sdk)
+ * - Uses it directly as the Bitcoin private key
+ * - Generates a P2WPKH (native SegWit) address
+ *
+ * NOTE: This is different from standard BIP84 derivation (deriveBitcoinAddress).
+ * Use this for compatibility with AIBTC-registered agents.
+ *
+ * @param stxPrivateKey - Stacks private key (64 or 66 hex chars)
+ * @param network - Network to derive address for ('mainnet' | 'testnet')
+ * @returns Bitcoin key pair with address, public key, and private key
+ */
+export function deriveBitcoinFromStacksKey(
+  stxPrivateKey: string,
+  network: Network
+): BitcoinKeyPair {
+  // Stacks private key is 64 hex chars, optionally with 01 suffix for compressed
+  const privateKeyHex = stxPrivateKey.slice(0, 64);
+  const privateKey = new Uint8Array(Buffer.from(privateKeyHex, "hex"));
+
+  // Get compressed public key using secp256k1
+  const publicKeyBytes = secp256k1.getPublicKey(privateKey, true);
+  const publicKey = Buffer.from(publicKeyBytes).toString("hex");
+
+  // Create native SegWit (P2WPKH) address
+  const btcNetwork = network === "testnet" ? btc.TEST_NETWORK : btc.NETWORK;
+  const p2wpkh = btc.p2wpkh(publicKeyBytes, btcNetwork);
+
+  if (!p2wpkh.address) {
+    throw new Error("Failed to generate Bitcoin address from Stacks key");
+  }
+
+  return {
+    address: p2wpkh.address,
+    publicKey,
+    privateKey,
+    publicKeyBytes: new Uint8Array(publicKeyBytes),
   };
 }
