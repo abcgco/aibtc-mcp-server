@@ -91,7 +91,7 @@ export async function transferStx(
 
   return {
     txid: broadcastResponse.txid,
-    rawTx: Buffer.from(transaction.serialize()).toString("hex"),
+    rawTx: transaction.serialize(),
   };
 }
 
@@ -129,7 +129,7 @@ export async function callContract(
 
   return {
     txid: broadcastResponse.txid,
-    rawTx: Buffer.from(transaction.serialize()).toString("hex"),
+    rawTx: transaction.serialize(),
   };
 }
 
@@ -163,7 +163,7 @@ export async function deployContract(
 
   return {
     txid: broadcastResponse.txid,
-    rawTx: Buffer.from(transaction.serialize()).toString("hex"),
+    rawTx: transaction.serialize(),
   };
 }
 
@@ -189,7 +189,7 @@ export async function signStxTransfer(
   });
 
   return {
-    signedTx: Buffer.from(transaction.serialize()).toString("hex"),
+    signedTx: transaction.serialize(),
     txid: transaction.txid(),
   };
 }
@@ -216,7 +216,7 @@ export async function signContractCall(
   });
 
   return {
-    signedTx: Buffer.from(transaction.serialize()).toString("hex"),
+    signedTx: transaction.serialize(),
     txid: transaction.txid(),
   };
 }
