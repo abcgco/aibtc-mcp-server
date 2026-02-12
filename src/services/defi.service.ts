@@ -223,7 +223,7 @@ export class AlexDexService {
 
     return {
       txid: broadcastResult.txid,
-      rawTx: Buffer.from(transaction.serialize()).toString("hex"),
+      rawTx: transaction.serialize(),
     };
   }
 
