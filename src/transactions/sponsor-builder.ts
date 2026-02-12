@@ -83,7 +83,7 @@ export async function sponsoredContractCall(
     fee: 0n,
   });
 
-  const serializedTx = Buffer.from(transaction.serialize()).toString("hex");
+  const serializedTx = transaction.serialize();
   const response = await submitToSponsorRelay(serializedTx, network, apiKey);
 
   if (!response.success) {
@@ -112,7 +112,7 @@ export async function transferStxSponsored(
     fee: 0n,
   });
 
-  const serializedTx = Buffer.from(transaction.serialize()).toString("hex");
+  const serializedTx = transaction.serialize();
   return submitToSponsorRelay(serializedTx, options.network, apiKey);
 }
 
