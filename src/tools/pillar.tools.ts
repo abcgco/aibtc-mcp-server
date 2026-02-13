@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getPillarApi } from "../services/pillar-api.service.js";
 import { createJsonResponse, createErrorResponse } from "../utils/index.js";
+import { NETWORK, getExplorerTxUrl } from "../config/networks.js";
 import { exec } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
@@ -283,7 +284,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: `Transaction submitted successfully!`,
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -361,7 +362,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: `${methodLabels[method] || "Deposit"} submitted successfully!`,
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -417,7 +418,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: "Backup admin added successfully!",
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -436,13 +437,14 @@ export function registerPillarTools(server: McpServer): void {
     }
   );
 
-  // Tool 7: Supply sBTC to Zest
+  // Tool 7: Supply/Earn — supply sBTC to Zest for yield (Earn tab)
   server.registerTool(
     "pillar_supply",
     {
       description:
-        "Supply sBTC from your Pillar smart wallet to Zest Protocol to earn yield. " +
-        "Your sBTC will be deposited as collateral and earn interest.",
+        "Earn yield on your Bitcoin. Supply sBTC from your Pillar smart wallet to Zest Protocol. " +
+        "Your sBTC earns interest with no leverage and no liquidation risk. " +
+        "This is the simplest way to earn on Pillar (Earn tab). For leveraged exposure, use pillar_boost instead.",
       inputSchema: {
         amount: z.number().positive().optional().describe("Amount in satoshis to supply (optional, can be set in UI)"),
       },
@@ -473,7 +475,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: "Supply to Zest submitted successfully!",
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -584,7 +586,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: "Unwind position submitted successfully!",
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -603,15 +605,16 @@ export function registerPillarTools(server: McpServer): void {
     }
   );
 
-  // Tool 10: Boost (create/increase leveraged position)
+  // Tool 10: Boost (create/increase leveraged position — 3rd tab)
   server.registerTool(
     "pillar_boost",
     {
       description:
-        "Create or increase a leveraged sBTC position (up to 1.5x). " +
-        "Opens the Pillar website where you can set the amount and confirm the boost. " +
-        "Your sBTC is supplied to Zest, borrowed against, and re-supplied for amplified exposure. " +
-        "Amounts over 100,000 sats automatically enter DCA mode — split into daily 100k-sat chunks " +
+        "Create or increase a leveraged sBTC position (up to 1.5x) on your Pillar smart wallet. " +
+        "Opens the Pillar website Boost tab where you can set the amount and confirm. " +
+        "Your sBTC is supplied to Zest, borrowed against, and re-supplied for amplified Bitcoin exposure. " +
+        "For simple yield without leverage, use pillar_supply (Earn) instead. " +
+        "Amounts over 100,000 sats automatically enter DCA mode -- split into daily 100k-sat chunks " +
         "(max 700k sats per schedule). The first chunk executes immediately, the rest follow daily.",
       inputSchema: {
         amount: z.number().positive().optional().describe("Amount in satoshis to boost (optional, shown as suggestion)"),
@@ -643,7 +646,7 @@ export function registerPillarTools(server: McpServer): void {
             success: true,
             message: "Boost position submitted successfully!",
             txId: result.txId,
-            explorerUrl: `https://explorer.hiro.so/txid/${result.txId}?chain=mainnet`,
+            explorerUrl: getExplorerTxUrl(result.txId, NETWORK),
           });
         }
 
@@ -662,13 +665,13 @@ export function registerPillarTools(server: McpServer): void {
     }
   );
 
-  // Tool 11: Get position and balance (opens modal + returns data)
+  // Tool 11: Get position and balance (opens /position page + returns data)
   server.registerTool(
     "pillar_position",
     {
       description:
         "View your Pillar wallet balance and Zest position. " +
-        "Opens the Position modal in the browser AND returns the data (sBTC balance, collateral, borrowed, LTV, liquidation price).",
+        "Opens the Position page in the browser AND returns the data (sBTC balance, collateral, borrowed, LTV, liquidation price).",
       inputSchema: {},
     },
     async () => {
@@ -731,16 +734,10 @@ export function registerPillarTools(server: McpServer): void {
         const collateralUsd = (zsbtcBalance / 1e8) * btcPrice;
         const hasPosition = zsbtcBalance > 0;
 
-        // Open the Position modal in frontend for accurate details
-        const api = getPillarApi();
-        const createResult = await api.post<{ opId: string }>("/api/mcp/create-op", {
-          action: "position",
-          walletAddress,
-        });
-        const { opId } = createResult;
-        await openBrowser(`${PILLAR_FRONTEND_URL}/?op=${opId}`);
+        // Open the Position page directly (no MCP operation needed)
+        await openBrowser(`${PILLAR_FRONTEND_URL}/position`);
 
-        // Return only accurate data - borrowed/LTV/liq price are shown in modal
+        // Return only accurate data - full details are shown on the position page
         return createJsonResponse({
           success: true,
           walletAddress,
@@ -756,7 +753,7 @@ export function registerPillarTools(server: McpServer): void {
             collateralUsd: btcPrice > 0 ? formatUsd(collateralUsd) : null,
           } : null,
           message: hasPosition
-            ? `Wallet: ${formatBtc(sbtcBalance)} sBTC | Collateral: ${formatBtc(zsbtcBalance)} BTC. See modal for borrowed, LTV, and liquidation price.`
+            ? `Wallet: ${formatBtc(sbtcBalance)} sBTC | Collateral: ${formatBtc(zsbtcBalance)} BTC. See position page for borrowed, LTV, and liquidation price.`
             : `Wallet: ${formatBtc(sbtcBalance)} sBTC | No active position`,
         });
       } catch (error) {

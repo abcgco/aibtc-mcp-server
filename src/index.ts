@@ -16,51 +16,98 @@ const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
 
 // =============================================================================
-// AUTO-INSTALL FOR CLAUDE CODE
+// AUTO-INSTALL FOR CLAUDE CODE AND CLAUDE DESKTOP
 // =============================================================================
 
-async function installToClaudeCode(): Promise<void> {
-  const claudeConfigPath = path.join(os.homedir(), ".claude.json");
+function getClaudeDesktopConfigPath(): string {
+  const platform = process.platform;
+  const home = os.homedir();
+
+  if (platform === "darwin") {
+    return path.join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json");
+  } else if (platform === "win32") {
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    return path.join(appData, "Claude", "claude_desktop_config.json");
+  } else {
+    // Linux and other Unix-like systems
+    return path.join(home, ".config", "Claude", "claude_desktop_config.json");
+  }
+}
+
+async function readJsonConfig(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    const content = await fs.readFile(filePath, "utf8");
+    return JSON.parse(content);
+  } catch {
+    // File doesn't exist or isn't valid JSON, start fresh
+    return {};
+  }
+}
+
+async function writeJsonConfig(filePath: string, config: Record<string, unknown>): Promise<void> {
+  // Ensure the parent directory exists
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(config, null, 2));
+}
+
+interface InstallOptions {
+  configPath: string;
+  label: string;
+  extraArgs?: string[];
+  restartMessage: string;
+}
+
+async function installMcpServer(options: InstallOptions): Promise<void> {
+  const { configPath, label, extraArgs = [], restartMessage } = options;
   const network = process.argv.includes("--testnet") ? "testnet" : "mainnet";
 
-  console.log("🔧 Installing @aibtc/mcp-server to Claude Code...\n");
+  console.log(`🔧 Installing @aibtc/mcp-server to ${label}...\n`);
 
-  // Read existing config or create new one
-  let config: { mcpServers?: Record<string, unknown> } = {};
-  try {
-    const content = await fs.readFile(claudeConfigPath, "utf8");
-    config = JSON.parse(content);
-  } catch {
-    // File doesn't exist, start fresh
-  }
+  const config = await readJsonConfig(configPath) as { mcpServers?: Record<string, unknown> };
 
-  // Add MCP server config
   if (!config.mcpServers) {
     config.mcpServers = {};
   }
 
   config.mcpServers["aibtc"] = {
     command: "npx",
-    args: ["@aibtc/mcp-server@latest"],
+    args: [...extraArgs, "@aibtc/mcp-server@latest"],
     env: {
       NETWORK: network,
     },
   };
 
-  // Write config
-  await fs.writeFile(claudeConfigPath, JSON.stringify(config, null, 2));
+  await writeJsonConfig(configPath, config);
 
   console.log("✅ Successfully installed!\n");
-  console.log(`   Config: ${claudeConfigPath}`);
+  console.log(`   Config: ${configPath}`);
   console.log(`   Network: ${network}`);
   console.log("\n📋 Next steps:");
-  console.log("   1. Restart Claude Code (close and reopen terminal)");
+  console.log(`   1. ${restartMessage}`);
   console.log("   2. Ask Claude: \"What's your wallet address?\"");
   console.log("   3. Claude will guide you through wallet setup\n");
 
   if (network === "testnet") {
     console.log("💡 Tip: Get testnet STX at https://explorer.hiro.so/sandbox/faucet?chain=testnet\n");
   }
+}
+
+async function installToClaudeCode(): Promise<void> {
+  return installMcpServer({
+    configPath: path.join(os.homedir(), ".claude.json"),
+    label: "Claude Code",
+    restartMessage: "Restart Claude Code (close and reopen terminal)",
+  });
+}
+
+async function installToClaudeDesktop(): Promise<void> {
+  return installMcpServer({
+    configPath: getClaudeDesktopConfigPath(),
+    label: "Claude Desktop",
+    extraArgs: ["-y"],
+    restartMessage: "Restart Claude Desktop (quit and reopen the app)",
+  });
 }
 
 // =============================================================================
@@ -92,7 +139,9 @@ if (process.argv[2] === "yield-hunter") {
 }
 // Check for --install flag
 else if (process.argv.includes("--install") || process.argv.includes("install")) {
-  installToClaudeCode()
+  const isDesktop = process.argv.includes("--desktop");
+  const installFn = isDesktop ? installToClaudeDesktop : installToClaudeCode;
+  installFn()
     .then(() => process.exit(0))
     .catch((error) => {
       console.error("❌ Installation failed:", redactSensitive(error.message));
