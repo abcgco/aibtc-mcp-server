@@ -1,7 +1,8 @@
 import axios, { type AxiosInstance } from "axios";
 import { wrapAxiosWithPayment, decodePaymentRequired, X402_HEADERS, type PaymentRequiredV2 } from "x402-stacks";
 import { generateWallet, getStxAddress } from "@stacks/wallet-sdk";
-import { NETWORK, API_URL, type Network } from "../config/networks.js";
+import { deserializeTransaction } from "@stacks/transactions";
+import { NETWORK, API_URL, getApiBaseUrl, type Network } from "../config/networks.js";
 import type { Account } from "../transactions/builder.js";
 import { getWalletManager } from "./wallet-manager.js";
 import { formatStx, formatSbtc } from "../utils/formatting.js";
@@ -443,6 +444,76 @@ export async function checkSufficientBalance(
     totalRequired.toString(),
     shortfall.toString()
   );
+}
+
+/**
+ * Extract the txid from a base64-encoded payment-signature header.
+ * The header contains a PaymentPayloadV2 with a signed transaction hex.
+ * Returns the txid (0x-prefixed) or null if extraction fails.
+ */
+export function extractTxidFromPaymentSignature(paymentSignatureHeader: string): string | null {
+  try {
+    const decoded = JSON.parse(Buffer.from(paymentSignatureHeader, 'base64').toString('utf-8'));
+    const txHex = decoded?.payload?.transaction;
+    if (!txHex || typeof txHex !== 'string') return null;
+
+    // Remove 0x prefix if present for deserialization
+    const cleanHex = txHex.startsWith('0x') ? txHex.slice(2) : txHex;
+    const tx = deserializeTransaction(cleanHex);
+
+    const txid = tx.txid();
+    return txid.startsWith('0x') ? txid : `0x${txid}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Poll the Hiro API for transaction confirmation status.
+ * Returns when confirmed, aborted, or timeout reached.
+ *
+ * @param txid - Transaction ID (0x-prefixed)
+ * @param maxWaitMs - Maximum polling duration (default 30s)
+ * @param intervalMs - Polling interval (default 5s)
+ */
+export async function pollTransactionConfirmation(
+  txid: string,
+  maxWaitMs = 30000,
+  intervalMs = 5000
+): Promise<{ status: string; confirmed: boolean; blockHeight?: number }> {
+  const baseUrl = getApiBaseUrl(NETWORK);
+  const cleanTxid = txid.startsWith('0x') ? txid : `0x${txid}`;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${baseUrl}/extended/v1/tx/${cleanTxid}`);
+
+      if (!response.ok) {
+        // 404 = not yet indexed; other errors = retry
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+        continue;
+      }
+
+      const data = await response.json() as { tx_status: string; block_height?: number };
+
+      if (data.tx_status === 'success') {
+        return { status: 'success', confirmed: true, blockHeight: data.block_height };
+      }
+
+      if (data.tx_status.startsWith('abort_')) {
+        return { status: data.tx_status, confirmed: false };
+      }
+
+      // Still pending — keep polling
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    } catch {
+      // Network error — keep polling
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+  }
+
+  return { status: 'pending', confirmed: false };
 }
 
 export { NETWORK, API_URL };
