@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockGetBalance = vi.fn();
 const mockGetStxBalance = vi.fn();
 const mockGetMempoolFees = vi.fn();
+const mockGetActiveAccount = vi.fn();
 
 vi.mock("../../src/services/sbtc.service.js", () => ({
   getSbtcService: () => ({ getBalance: mockGetBalance }),
@@ -19,6 +20,12 @@ vi.mock("../../src/services/hiro-api.js", () => ({
   }),
 }));
 
+vi.mock("../../src/services/wallet-manager.js", () => ({
+  getWalletManager: () => ({
+    getActiveAccount: mockGetActiveAccount,
+  }),
+}));
+
 // Import after mocks are established
 const {
   checkSufficientBalance,
@@ -27,6 +34,8 @@ const {
   recordTransaction,
   detectTokenType,
   formatPaymentAmount,
+  createApiClient,
+  getAccount,
 } = await import("../../src/services/x402.service.js");
 
 const { InsufficientBalanceError } = await import("../../src/utils/errors.js");
@@ -279,5 +288,109 @@ describe("checkSufficientBalance", () => {
       // Verify it called sBTC service, not just STX balance
       expect(mockGetBalance).toHaveBeenCalledWith(MOCK_ACCOUNT.address);
     });
+  });
+});
+
+describe("payment attempt guard", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock wallet manager to return test account
+    mockGetActiveAccount.mockReturnValue({
+      address: "SP000000000000000000002Q6VF78",
+      privateKey: "0".repeat(64),
+      network: "mainnet",
+    });
+  });
+
+  it("creates fresh client instance per call", async () => {
+    // Act: create two clients with same base URL
+    const client1 = await createApiClient("https://x402.example.com");
+    const client2 = await createApiClient("https://x402.example.com");
+
+    // Assert: instances should not be the same reference (no caching)
+    expect(client1).not.toBe(client2);
+  });
+
+  it("increments payment attempt counter on first 402", async () => {
+    // Create a test client
+    const client = await createApiClient("https://x402.test.com");
+
+    // Mock axios adapter to return 402
+    client.defaults.adapter = async (config) => {
+      // First call returns 402
+      throw {
+        response: {
+          status: 402,
+          data: {
+            x402Version: 2,
+            resource: { url: "https://x402.test.com/test" },
+            accepts: [
+              {
+                network: "stacks:1",
+                asset: "STX",
+                amount: "1000",
+                payTo: "SP000000000000000000002Q6VF78",
+              },
+            ],
+          },
+          headers: {},
+          config,
+        },
+        config,
+      };
+    };
+
+    // Act & Assert: first 402 should pass through guard (not blocked)
+    try {
+      await client.get("/test");
+      expect.fail("Should have thrown 402 error");
+    } catch (error) {
+      const err = error as Error;
+      // Should NOT be guard error message
+      expect(err.message).not.toContain("Payment retry limit exceeded");
+    }
+  });
+
+  it("blocks retry after payment attempt limit reached", async () => {
+    // Arrange: create a client and force the adapter to always return 402
+    const client = await createApiClient("https://x402.test.com");
+
+    client.defaults.adapter = async (config) => {
+      throw {
+        response: {
+          status: 402,
+          data: {
+            x402Version: 2,
+            resource: { url: "https://x402.test.com/test" },
+            accepts: [
+              {
+                network: "stacks:1",
+                asset: "STX",
+                amount: "1000",
+                payTo: "SP000000000000000000002Q6VF78",
+              },
+            ],
+          },
+          headers: {},
+          config,
+        },
+        config,
+      };
+    };
+
+    // Act & Assert: first 402 should not be blocked by the guard
+    try {
+      await client.get("/test");
+      expect.fail("First request should have thrown 402 error");
+    } catch (error) {
+      const err = error as Error;
+      // First failure should NOT be the guard error
+      expect(err.message).not.toContain("Payment retry limit exceeded");
+    }
+
+    // Act & Assert: second 402 should be rejected by the guard
+    await expect(client.get("/test")).rejects.toThrow(
+      "Payment retry limit exceeded",
+    );
   });
 });
