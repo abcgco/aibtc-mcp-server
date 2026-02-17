@@ -1,5 +1,21 @@
 import axios, { type AxiosInstance } from "axios";
-import { wrapAxiosWithPayment, decodePaymentRequired, X402_HEADERS, type PaymentRequiredV2 } from "x402-stacks";
+import { wrapAxiosWithPayment, decodePaymentRequired, X402_HEADERS } from "x402-stacks";
+
+/** Shape returned by decodePaymentRequired() from x402-stacks v2 */
+interface PaymentRequiredV2 {
+  accepts: Array<{
+    amount: string;
+    asset: string;
+    payTo: string;
+    network: string;
+    maxTimeoutSeconds?: number;
+  }>;
+  resource?: {
+    url: string;
+    description?: string;
+    mimeType?: string;
+  };
+}
 import { generateWallet, getStxAddress } from "@stacks/wallet-sdk";
 import { NETWORK, API_URL, type Network } from "../config/networks.js";
 import type { Account } from "../transactions/builder.js";
@@ -207,9 +223,15 @@ export type ProbeResult = ProbeResultFree | ProbeResultPaymentRequired;
  */
 export function detectTokenType(asset: string): 'STX' | 'sBTC' {
   const assetLower = asset.trim().toLowerCase();
-  // Treat as sBTC only if the asset is exactly "sbtc" (token name)
-  // or a full contract identifier ending with "::token-sbtc"
-  if (assetLower === 'sbtc' || assetLower.endsWith('::token-sbtc')) {
+  // Treat as sBTC if:
+  // - exact token name "sbtc"
+  // - full asset identifier ending with "::token-sbtc"
+  // - contract identifier ending with ".sbtc-token" (v2 payment format)
+  if (
+    assetLower === 'sbtc' ||
+    assetLower.endsWith('::token-sbtc') ||
+    assetLower.endsWith('.sbtc-token')
+  ) {
     return 'sBTC';
   }
   return 'STX';
