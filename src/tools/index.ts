@@ -19,8 +19,7 @@ import { registerErc8004Tools } from "./erc8004.tools.js";
 // Layer 2b: DeFi (Advanced)
 import { registerDefiTools } from "./defi.tools.js";
 import { registerStackingTools } from "./stacking.tools.js";
-// TODO: Re-enable when Bitflow API key integration is complete
-// import { registerBitflowTools } from "./bitflow.tools.js";
+import { registerBitflowTools } from "./bitflow.tools.js";
 
 // Layer 3: Pillar Smart Wallet
 import { registerPillarTools } from "./pillar.tools.js";
@@ -74,7 +73,7 @@ export function registerAllTools(server: McpServer): void {
   // =========================================================================
   registerDefiTools(server);
   registerStackingTools(server);
-  // registerBitflowTools(server); // Disabled until API key integration
+  registerBitflowTools(server);
 
   // =========================================================================
   // Layer 3: Pillar Smart Wallet

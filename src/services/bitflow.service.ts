@@ -62,21 +62,19 @@ export interface BitflowToken {
 // ============================================================================
 
 /**
- * TODO: Bitflow API Key Integration
+ * Bitflow Service
  *
- * Current status: Bitflow SDK features require API key from Bitflow team.
+ * As of @bitflowlabs/core-sdk v2.4.2, all API keys are optional.
+ * The SDK works out of the box with public rate limits (500 req/min per IP).
  *
- * To enable full Bitflow features:
- * 1. Contact Bitflow team via Discord to request API keys
- * 2. Set environment variables:
- *    - BITFLOW_API_KEY: Required for SDK features (quotes, swaps, tokens)
- *    - BITFLOW_API_HOST: API host URL (provided by Bitflow)
- *    - BITFLOW_KEEPER_API_KEY: Optional, for Keeper automation features
- *    - BITFLOW_KEEPER_API_HOST: Optional, Keeper API host
+ * Optional env vars for higher rate limits:
+ *   - BITFLOW_API_KEY: Core API (tokens, quotes, routes)
+ *   - BITFLOW_API_HOST: Override API host
+ *   - BITFLOW_KEEPER_API_KEY: Keeper automation features
+ *   - BITFLOW_KEEPER_API_HOST: Override Keeper API host
+ *   - BITFLOW_READONLY_API_HOST: Override Stacks read-only node
  *
- * Without API key: Only public ticker endpoint works (bitflow_get_ticker)
- *
- * Future: Move API keys to Cloudflare Worker proxy so npm users don't need their own keys
+ * Request higher limits: help@bitflow.finance
  */
 export class BitflowService {
   private sdk: BitflowSDK | null = null;
@@ -88,27 +86,24 @@ export class BitflowService {
   }
 
   /**
-   * Initialize the Bitflow SDK if API key is configured
+   * Initialize the Bitflow SDK.
+   * API keys are optional — public endpoints work without them.
    */
   private initializeSdk(): void {
     if (this.sdkInitialized) return;
     this.sdkInitialized = true;
 
     const config = getBitflowConfig();
-    if (!config || !config.apiKey) {
-      console.log("Bitflow SDK not configured - API key missing. Using public API only.");
-      return;
-    }
 
     try {
       this.sdk = new BitflowSDK({
         BITFLOW_API_HOST: config.apiHost,
-        BITFLOW_API_KEY: config.apiKey,
+        BITFLOW_API_KEY: config.apiKey || "public",
         READONLY_CALL_API_HOST: config.readOnlyCallApiHost,
-        BITFLOW_PROVIDER_ADDRESS: "", // Not needed for our use case
-        READONLY_CALL_API_KEY: "", // Optional
+        BITFLOW_PROVIDER_ADDRESS: "", // Not needed for read-only quote/swap operations
+        READONLY_CALL_API_KEY: "",   // Optional
         KEEPER_API_HOST: config.keeperApiHost || "",
-        KEEPER_API_KEY: config.keeperApiKey || "",
+        KEEPER_API_KEY: config.keeperApiKey || "public",
       });
     } catch (error) {
       console.error("Failed to initialize Bitflow SDK:", error);
@@ -313,11 +308,11 @@ export class BitflowService {
   // ==========================================================================
 
   /**
-   * Check if Keeper features are available
+   * Check if Keeper features are available.
+   * Keeper API host must be configured (defaults to public endpoint).
    */
   public isKeeperAvailable(): boolean {
-    const config = getBitflowConfig();
-    return this.sdk !== null && !!config?.keeperApiKey;
+    return this.sdk !== null;
   }
 
   /**
