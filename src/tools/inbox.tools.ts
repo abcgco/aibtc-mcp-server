@@ -16,7 +16,7 @@ import { createJsonResponse, createErrorResponse } from "../utils/index.js";
 import { InsufficientBalanceError } from "../utils/errors.js";
 import { formatSbtc } from "../utils/formatting.js";
 import { getHiroApi } from "../services/hiro-api.js";
-import { extractTxidFromPaymentSignature } from "../utils/x402-recovery.js";
+import { extractTxidFromPaymentSignature, pollTransactionConfirmation } from "../utils/x402-recovery.js";
 
 const INBOX_BASE = "https://aibtc.com/api/inbox";
 
@@ -148,6 +148,15 @@ async function buildSponsoredSbtcTransfer(
  * Check if a response body / error indicates a retryable nonce conflict.
  */
 function isRetryableError(status: number, body: unknown): boolean {
+  // Duplicate-message 409 from the inbox API must NOT be retried —
+  // the message was already delivered and retrying would re-pay.
+  if (status === 409) {
+    const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
+    if (/already exists|duplicate/i.test(bodyStr)) {
+      return false;
+    }
+  }
+
   if (typeof body === "object" && body !== null) {
     const b = body as Record<string, unknown>;
     // Relay returns retryable: true for SETTLEMENT_BROADCAST_FAILED (issue #157)
@@ -362,9 +371,10 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
             console.error(
               `[send_inbox_message] Retryable error on attempt ${attempt + 1}: status=${finalRes.status} body=${responseData}`
             );
-            // For relay-side errors (SETTLEMENT_BROADCAST_FAILED, NONCE_CONFLICT),
-            // we need a fresh nonce — the next loop iteration will fetch it.
-            // Do NOT advance nonce cache here: the transaction was not accepted.
+            // Advance nonce cache even on failure so the next attempt uses a
+            // strictly higher nonce. Without this, getNextNonce could return the
+            // same value if the rejected tx never reached the mempool.
+            advanceNonceCache(account.address, nonce);
             lastError = `${finalRes.status}: ${responseData}`;
             continue;
           }
@@ -376,9 +386,11 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
 
           const errorBase = `Message delivery failed (${finalRes.status}): ${responseData}`;
           if (txid) {
+            // Poll briefly for on-chain status so the error includes actionable info
+            const confirmation = await pollTransactionConfirmation(txid, NETWORK);
             throw new Error(
               `${errorBase}\n\nPayment transaction was submitted but settlement failed. ` +
-              `Check transaction status:\n  txid: ${txid}\n  explorer: ${getExplorerTxUrl(txid, NETWORK)}`
+              `Transaction recovery info:\n  txid: ${confirmation.txid}\n  status: ${confirmation.status}\n  explorer: ${confirmation.explorer}`
             );
           }
           throw new Error(errorBase);

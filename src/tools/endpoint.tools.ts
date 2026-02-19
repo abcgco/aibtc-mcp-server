@@ -379,7 +379,7 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
           const txid = extractTxidFromPaymentSignature(paymentSigHeader);
           if (txid) {
             // Poll briefly to get current status
-            const confirmation = await pollTransactionConfirmation(txid, NETWORK, 5000, 2000);
+            const confirmation = await pollTransactionConfirmation(txid, NETWORK);
             const baseError = formatEndpointError(error, label);
             return {
               ...baseError,
