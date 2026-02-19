@@ -65,6 +65,8 @@ export interface PriceImpactResult {
   hops: PriceImpactHop[];
   /** Total fee across all hops in basis points (approximate) */
   totalFeeBps: number;
+  /** Set when price impact calculation failed — surfaced to caller instead of silently dropped */
+  error?: string;
 }
 
 export interface BitflowSwapQuote {
@@ -73,7 +75,7 @@ export interface BitflowSwapQuote {
   amountIn: string;
   expectedAmountOut: string;
   route: string[];
-  priceImpact?: PriceImpactResult;
+  priceImpact: PriceImpactResult;
 }
 
 export interface BitflowToken {
@@ -263,7 +265,7 @@ export class BitflowService {
       amountIn: amount.toString(),
       expectedAmountOut: quoteResult.bestRoute.quote?.toString() || "0",
       route: quoteResult.bestRoute.tokenPath,
-      priceImpact: priceImpact ?? undefined,
+      priceImpact,
     };
   }
 
@@ -293,14 +295,22 @@ export class BitflowService {
     const config = getBitflowConfig();
     const host = config?.readOnlyCallApiHost || process.env.BITFLOW_READONLY_API_HOST || "https://node.bitflowapis.finance";
     const url = `${host}/v2/contracts/call-read/${contractAddress}/${contractName}/${functionName}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sender: "SP000000000000000000002Q6VF78",
-        arguments: args,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: "SP000000000000000000002Q6VF78",
+          arguments: args,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     const json = await res.json();
     if (!json.okay) {
       throw new Error(`Contract call failed: ${JSON.stringify(json)}`);
@@ -330,27 +340,36 @@ export class BitflowService {
    *
    * @param quoteResult The SDK quote result containing route and swap data
    * @param amountIn The input amount in human-readable units (e.g. 1.0 for 1 sBTC)
-   * @returns PriceImpactResult or null if pools can't be read
+   * @returns PriceImpactResult — includes an `error` field if pools can't be read
    */
   async calculatePriceImpact(
     quoteResult: QuoteResult,
     amountIn: number
-  ): Promise<PriceImpactResult | null> {
+  ): Promise<PriceImpactResult> {
+    const noData = (reason: string): PriceImpactResult => ({
+      combinedImpact: 0,
+      combinedImpactPct: "0.00%",
+      severity: "low",
+      hops: [],
+      totalFeeBps: 0,
+      error: reason,
+    });
+
     try {
       const bestRoute = quoteResult.bestRoute;
-      if (!bestRoute) return null;
+      if (!bestRoute) return noData("No best route in quote result");
 
       // swapData is a single object (not an array)
       const swapData = bestRoute.swapData;
-      if (!swapData?.parameters) return null;
+      if (!swapData?.parameters) return noData("No swap parameters in best route");
 
       // Extract pool contracts from xyk-pools: { a: "pool1", b: "pool2" }
       const xykPools: Record<string, string> | undefined = swapData.parameters["xyk-pools"];
-      if (!xykPools) return null;
+      if (!xykPools) return noData("Route does not use XYK pools (may be stableswap)");
 
       // Sort pool keys alphabetically to get hop order
       const poolKeys = Object.keys(xykPools).sort();
-      if (poolKeys.length === 0) return null;
+      if (poolKeys.length === 0) return noData("No XYK pools found in route");
 
       const tokenPath: string[] = bestRoute.tokenPath || [];
       const hops: PriceImpactHop[] = [];
@@ -383,7 +402,9 @@ export class BitflowService {
         const yBalance = this.getUintFromPool(pool, "y-balance");
         if (!xBalance || !yBalance) continue;
 
-        // Read fee fields (protocol + provider for input direction)
+        // NOTE: Always reads x-protocol-fee and x-provider-fee.
+        // Bitflow XYK pools use symmetric fees — the same fee applies regardless of swap direction.
+        // If this assumption changes, multi-hop fee calculation will need per-hop direction logic.
         const xProtocolFee = this.getUintFromPool(pool, "x-protocol-fee") || 0n;
         const xProviderFee = this.getUintFromPool(pool, "x-provider-fee") || 0n;
         const feeBps = Number(xProtocolFee + xProviderFee);
@@ -423,7 +444,7 @@ export class BitflowService {
         });
       }
 
-      if (hops.length === 0) return null;
+      if (hops.length === 0) return noData("Could not read reserves for any pool in route");
 
       // Combined impact: 1 - (1-i1) * (1-i2) * ...
       const combinedImpact = 1 - hops.reduce((acc, h) => acc * (1 - h.impact), 1);
@@ -440,8 +461,9 @@ export class BitflowService {
         totalFeeBps,
       };
     } catch (error) {
-      console.error("Failed to calculate price impact:", error);
-      return null;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Price impact calculation failed:", message);
+      return noData(message);
     }
   }
 
