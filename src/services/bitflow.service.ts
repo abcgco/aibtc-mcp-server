@@ -98,12 +98,12 @@ export class BitflowService {
     try {
       this.sdk = new BitflowSDK({
         BITFLOW_API_HOST: config.apiHost,
-        BITFLOW_API_KEY: config.apiKey || "public",
+        BITFLOW_API_KEY: config.apiKey || "",
         READONLY_CALL_API_HOST: config.readOnlyCallApiHost,
         BITFLOW_PROVIDER_ADDRESS: "", // Not needed for read-only quote/swap operations
         READONLY_CALL_API_KEY: "",   // Optional
         KEEPER_API_HOST: config.keeperApiHost || "",
-        KEEPER_API_KEY: config.keeperApiKey || "public",
+        KEEPER_API_KEY: config.keeperApiKey || "",
       });
     } catch (error) {
       console.error("Failed to initialize Bitflow SDK:", error);
@@ -304,16 +304,8 @@ export class BitflowService {
   }
 
   // ==========================================================================
-  // Keeper Functions (Requires Keeper API Key)
+  // Keeper Functions (public endpoints)
   // ==========================================================================
-
-  /**
-   * Check if Keeper features are available.
-   * Keeper API host must be configured (defaults to public endpoint).
-   */
-  public isKeeperAvailable(): boolean {
-    return this.sdk !== null;
-  }
 
   /**
    * Get or create keeper contract for user
@@ -324,10 +316,6 @@ export class BitflowService {
   ): Promise<{ contractIdentifier: string; status: string }> {
     this.ensureMainnet();
     const sdk = this.ensureSdk();
-
-    if (!this.isKeeperAvailable()) {
-      throw new Error("Keeper features not configured. Set BITFLOW_KEEPER_API_KEY to enable.");
-    }
 
     const params: GetKeeperContractParams = {
       stacksAddress,
@@ -355,10 +343,6 @@ export class BitflowService {
   }): Promise<{ orderId: string; status: string }> {
     this.ensureMainnet();
     const sdk = this.ensureSdk();
-
-    if (!this.isKeeperAvailable()) {
-      throw new Error("Keeper features not configured. Set BITFLOW_KEEPER_API_KEY to enable.");
-    }
 
     const orderParams: CreateOrderParams = {
       contractIdentifier: params.contractIdentifier,
@@ -391,10 +375,6 @@ export class BitflowService {
     this.ensureMainnet();
     const sdk = this.ensureSdk();
 
-    if (!this.isKeeperAvailable()) {
-      throw new Error("Keeper features not configured. Set BITFLOW_KEEPER_API_KEY to enable.");
-    }
-
     const result = await sdk.getOrder(orderId);
 
     return {
@@ -412,10 +392,6 @@ export class BitflowService {
     this.ensureMainnet();
     const sdk = this.ensureSdk();
 
-    if (!this.isKeeperAvailable()) {
-      throw new Error("Keeper features not configured. Set BITFLOW_KEEPER_API_KEY to enable.");
-    }
-
     const result = await sdk.cancelOrder(orderId);
     return { success: result.success };
   }
@@ -430,10 +406,6 @@ export class BitflowService {
   }> {
     this.ensureMainnet();
     const sdk = this.ensureSdk();
-
-    if (!this.isKeeperAvailable()) {
-      throw new Error("Keeper features not configured. Set BITFLOW_KEEPER_API_KEY to enable.");
-    }
 
     const result = await sdk.getUser(stacksAddress);
 

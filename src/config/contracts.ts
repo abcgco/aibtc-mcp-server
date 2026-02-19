@@ -286,7 +286,7 @@ export interface BitflowConfig {
  * - BITFLOW_KEEPER_API_KEY: Keeper automation features
  */
 export function getBitflowConfig(): BitflowConfig {
-  const readOnlyCallApiHost = process.env.BITFLOW_READONLY_API_HOST || "https://node.bitflowapis.finance";
+  const readOnlyCallApiHost = process.env.BITFLOW_READONLY_API_HOST || "https://node.bitflowapis.finance"; // Bitflow's own node; avoids Hiro rate limits for read-only calls
 
   return {
     apiHost: process.env.BITFLOW_API_HOST || "https://bitflowsdk-api-test-7owjsmt8.uk.gateway.dev",

@@ -328,13 +328,6 @@ Note: Bitflow is only available on mainnet.`,
 
         const bitflowService = getBitflowService(NETWORK);
 
-        if (!bitflowService.isKeeperAvailable()) {
-          return createJsonResponse({
-            error: "Bitflow Keeper not configured",
-            message: "Set BITFLOW_KEEPER_API_KEY environment variable to enable Keeper features",
-          });
-        }
-
         const address = stacksAddress || (await getWalletAddress());
         const result = await bitflowService.getOrCreateKeeperContract(address);
 
@@ -388,13 +381,6 @@ Note: Bitflow is only available on mainnet.`,
         }
 
         const bitflowService = getBitflowService(NETWORK);
-
-        if (!bitflowService.isKeeperAvailable()) {
-          return createJsonResponse({
-            error: "Bitflow Keeper not configured",
-            message: "Set BITFLOW_KEEPER_API_KEY environment variable to enable Keeper features",
-          });
-        }
 
         const address = await getWalletAddress();
         const result = await bitflowService.createKeeperOrder({
@@ -451,13 +437,6 @@ Note: Bitflow is only available on mainnet.`,
 
         const bitflowService = getBitflowService(NETWORK);
 
-        if (!bitflowService.isKeeperAvailable()) {
-          return createJsonResponse({
-            error: "Bitflow Keeper not configured",
-            message: "Set BITFLOW_KEEPER_API_KEY environment variable to enable Keeper features",
-          });
-        }
-
         const order = await bitflowService.getKeeperOrder(orderId);
 
         return createJsonResponse({
@@ -494,13 +473,6 @@ Note: Bitflow is only available on mainnet.`,
         }
 
         const bitflowService = getBitflowService(NETWORK);
-
-        if (!bitflowService.isKeeperAvailable()) {
-          return createJsonResponse({
-            error: "Bitflow Keeper not configured",
-            message: "Set BITFLOW_KEEPER_API_KEY environment variable to enable Keeper features",
-          });
-        }
 
         const result = await bitflowService.cancelKeeperOrder(orderId);
 
@@ -542,13 +514,6 @@ Note: Bitflow is only available on mainnet.`,
         }
 
         const bitflowService = getBitflowService(NETWORK);
-
-        if (!bitflowService.isKeeperAvailable()) {
-          return createJsonResponse({
-            error: "Bitflow Keeper not configured",
-            message: "Set BITFLOW_KEEPER_API_KEY environment variable to enable Keeper features",
-          });
-        }
 
         const address = stacksAddress || (await getWalletAddress());
         const userInfo = await bitflowService.getKeeperUser(address);
