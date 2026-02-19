@@ -10,7 +10,7 @@
 
 import { deserializeTransaction } from "@stacks/transactions";
 import { getHiroApi } from "../services/hiro-api.js";
-import { type Network } from "../config/networks.js";
+import { type Network, getExplorerTxUrl } from "../config/networks.js";
 import { decodePaymentPayload } from "./x402-protocol.js";
 
 // ============================================================================
@@ -76,18 +76,17 @@ export async function pollTransactionConfirmation(
   intervalMs = 2_000
 ): Promise<TransactionConfirmationResult> {
   const hiroApi = getHiroApi(network);
-  const cleanTxid = txid.startsWith("0x") ? txid.slice(2) : txid;
-  const explorerUrl = `https://explorer.hiro.so/txid/${cleanTxid}?chain=${network}`;
+  const normalizedTxid = txid.startsWith("0x") ? txid.slice(2) : txid;
+  const explorerUrl = getExplorerTxUrl(normalizedTxid, network);
 
   const deadline = Date.now() + maxWaitMs;
 
   while (Date.now() < deadline) {
     try {
-      const status = await hiroApi.getTransactionStatus(cleanTxid);
-      // If confirmed or failed, return immediately
+      const status = await hiroApi.getTransactionStatus(normalizedTxid);
       if (status.status !== "pending") {
         return {
-          txid: cleanTxid,
+          txid: normalizedTxid,
           status: status.status,
           block_height: status.block_height,
           tx_result: status.tx_result,
@@ -103,9 +102,8 @@ export async function pollTransactionConfirmation(
     await new Promise((resolve) => setTimeout(resolve, Math.min(intervalMs, remaining)));
   }
 
-  // Return pending status after timeout
   return {
-    txid: cleanTxid,
+    txid: normalizedTxid,
     status: "pending",
     explorer: explorerUrl,
   };

@@ -44,11 +44,9 @@ const NONCE_TTL_MS = 120_000;
 async function getNextNonce(address: string): Promise<number> {
   const hiroApi = getHiroApi(NETWORK);
 
-  // Fetch confirmed nonce from account info
   const accountInfo = await hiroApi.getAccountInfo(address);
   const confirmedNonce = accountInfo.nonce;
 
-  // Fetch mempool transactions to find the highest pending nonce
   let highestMempoolNonce = -1;
   try {
     const mempool = await hiroApi.getMempoolTransactions({
@@ -64,17 +62,10 @@ async function getNextNonce(address: string): Promise<number> {
     // Non-fatal: fall back to confirmed nonce only
   }
 
-  const fromMempool = highestMempoolNonce >= 0 ? highestMempoolNonce + 1 : 0;
-
-  // Check local cache
-  const now = Date.now();
   const cached = nonceCache.get(address);
-  let fromCache = 0;
-  if (cached && now < cached.expiresAt) {
-    fromCache = cached.nextNonce;
-  }
+  const fromCache = (cached && Date.now() < cached.expiresAt) ? cached.nextNonce : 0;
 
-  return Math.max(confirmedNonce, fromMempool, fromCache);
+  return Math.max(confirmedNonce, highestMempoolNonce + 1, fromCache);
 }
 
 /**
@@ -169,12 +160,7 @@ function isRetryableError(status: number, body: unknown): boolean {
     }
   }
   if (typeof body === "string") {
-    if (
-      body.includes("ConflictingNonceInMempool") ||
-      body.includes("BadNonce")
-    ) {
-      return true;
-    }
+    return body.includes("ConflictingNonceInMempool") || body.includes("BadNonce");
   }
   return false;
 }

@@ -302,14 +302,10 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
       },
     },
     async ({ method, url, path, apiUrl, params, data, autoApprove }) => {
-      let baseUrl = "";
-      let requestPath = "";
       let fullUrl = "";
 
       try {
         const parsed = parseEndpointUrl({ url, path, apiUrl, params });
-        baseUrl = parsed.baseUrl;
-        requestPath = parsed.requestPath;
         fullUrl = parsed.fullUrl;
         params = parsed.params;
 
@@ -322,7 +318,6 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
         const probeResult = await probeEndpoint({ method, url: fullUrl, params, data });
 
         if (probeResult.type === 'payment_required') {
-          // Check for duplicate transaction
           const dedupKey = generateDedupKey(method, fullUrl, params, data);
           const existingTxid = checkDedupCache(dedupKey);
           if (existingTxid) {
@@ -334,16 +329,12 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
             });
           }
 
-          // Check sufficient balance before creating payment client
           const account = await getAccount();
           await checkSufficientBalance(account, probeResult.amount, probeResult.asset);
 
-          // Balance is sufficient - create payment client and execute
-          const api = await createApiClient(baseUrl);
-          const response = await api.request({ method, url: requestPath, params, data });
+          const api = await createApiClient(parsed.baseUrl);
+          const response = await api.request({ method, url: parsed.requestPath, params, data });
 
-          // Extract txid from response and record for dedup
-          // x402 payment responses typically include txid in response data or headers
           const txid = (response.data as { txid?: string })?.txid ||
                        response.headers?.['x-transaction-id'] ||
                        'unknown';
@@ -357,8 +348,8 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
         }
 
         // Free endpoint - execute directly without payment client
-        const api = createPlainClient(baseUrl);
-        const response = await api.request({ method, url: requestPath, params, data });
+        const api = createPlainClient(parsed.baseUrl);
+        const response = await api.request({ method, url: parsed.requestPath, params, data });
 
         return createJsonResponse({
           endpoint: `${method} ${fullUrl}`,
