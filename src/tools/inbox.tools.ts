@@ -283,7 +283,7 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
 
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
           if (attempt > 0) {
-            const delay = RETRY_DELAYS_MS[attempt - 1] ?? 2000;
+            const delay = RETRY_DELAYS_MS[attempt - 1];
             console.error(
               `[send_inbox_message] Retry attempt ${attempt}/${MAX_ATTEMPTS - 1} after ${delay}ms`
             );
