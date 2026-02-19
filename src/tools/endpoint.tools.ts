@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createApiClient, createPlainClient, API_URL, probeEndpoint, formatPaymentAmount, type ProbeResult, checkSufficientBalance, generateDedupKey, checkDedupCache, recordTransaction, getAccount } from "../services/x402.service.js";
+import { createApiClient, createPlainClient, API_URL, probeEndpoint, formatPaymentAmount, type ProbeResult, checkSufficientBalance, generateDedupKey, checkDedupCache, recordTransaction, getAccount, NETWORK } from "../services/x402.service.js";
 import {
   ALL_ENDPOINTS,
   searchEndpoints,
@@ -9,6 +9,8 @@ import {
   getCategories,
 } from "../endpoints/registry.js";
 import { createJsonResponse, createErrorResponse } from "../utils/index.js";
+import { X402_HEADERS } from "../utils/x402-protocol.js";
+import { extractTxidFromPaymentSignature, pollTransactionConfirmation } from "../utils/x402-recovery.js";
 
 const ALL_SOURCES = "x402.biwas.xyz, x402.aibtc.com, stx402.com, aibtc.com";
 
@@ -364,6 +366,37 @@ For aibtc.com inbox messages, use send_inbox_message instead — it uses sponsor
         });
       } catch (error) {
         const label = fullUrl || url || path || "unknown";
+
+        // Txid recovery: when payment was attempted but settlement failed,
+        // extract the txid from the payment-signature header (set by the axios
+        // interceptor in x402.service.ts) and return it so the agent can verify.
+        const axiosError = error as {
+          config?: { headers?: Record<string, string> };
+          response?: { status?: number; data?: unknown };
+        };
+        const paymentSigHeader = axiosError.config?.headers?.[X402_HEADERS.PAYMENT_SIGNATURE];
+        if (paymentSigHeader) {
+          const txid = extractTxidFromPaymentSignature(paymentSigHeader);
+          if (txid) {
+            // Poll briefly to get current status
+            const confirmation = await pollTransactionConfirmation(txid, NETWORK, 5000, 2000);
+            const baseError = formatEndpointError(error, label);
+            return {
+              ...baseError,
+              content: [
+                {
+                  type: "text" as const,
+                  text: baseError.content[0].text +
+                    `\n\nPayment transaction was submitted but settlement failed. Transaction recovery info:\n` +
+                    `  txid: ${confirmation.txid}\n` +
+                    `  status: ${confirmation.status}\n` +
+                    `  explorer: ${confirmation.explorer}`,
+                },
+              ],
+            };
+          }
+        }
+
         return formatEndpointError(error, label);
       }
     }
