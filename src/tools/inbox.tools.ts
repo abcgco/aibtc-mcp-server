@@ -182,6 +182,43 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ============================================================================
+// Recovery Helper
+// ============================================================================
+
+interface RecoveryResult {
+  ok: boolean;
+  status: number;
+  body: string;
+}
+
+/**
+ * POST a message to the inbox using a confirmed txid as payment proof.
+ * Returns a structured result so callers can decide how to handle failure
+ * (manual recovery throws, auto-recovery tries the next txid).
+ */
+async function submitWithPaymentTxid(
+  recipientBtcAddress: string,
+  recipientStxAddress: string,
+  content: string,
+  txid: string
+): Promise<RecoveryResult> {
+  const url = `${INBOX_BASE}/${recipientBtcAddress}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      toBtcAddress: recipientBtcAddress,
+      toStxAddress: recipientStxAddress,
+      content,
+      paymentTxid: txid,
+    }),
+  });
+  const body = await res.text();
+  const ok = res.status === 200 || res.status === 201 || res.status === 409;
+  return { ok, status: res.status, body };
+}
+
+// ============================================================================
 // Tool Registration
 // ============================================================================
 
@@ -212,11 +249,45 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
           .string()
           .max(500)
           .describe("Message content (max 500 characters)"),
+        paymentTxid: z
+          .string()
+          .optional()
+          .describe(
+            "Optional: a confirmed on-chain sBTC transfer txid to use as payment proof. " +
+            "When provided, skips the x402 payment flow and resubmits the message directly. " +
+            "Use for manual recovery after a settlement timeout left the payment confirmed but the message undelivered."
+          ),
       },
     },
-    async ({ recipientBtcAddress, recipientStxAddress, content }) => {
+    async ({ recipientBtcAddress, recipientStxAddress, content, paymentTxid }) => {
       try {
         const account = await getAccount();
+
+        // Manual recovery: skip x402 flow and POST with the provided txid as proof
+        if (paymentTxid) {
+          const result = await submitWithPaymentTxid(
+            recipientBtcAddress, recipientStxAddress, content, paymentTxid
+          );
+          if (!result.ok) {
+            throw new Error(`paymentTxid recovery failed (${result.status}): ${result.body}`);
+          }
+          return createJsonResponse({
+            success: true,
+            message: result.status === 409
+              ? "Message already delivered"
+              : "Message delivered (manual txid recovery)",
+            recipient: {
+              btcAddress: recipientBtcAddress,
+              stxAddress: recipientStxAddress,
+            },
+            contentLength: content.length,
+            payment: {
+              txid: paymentTxid,
+              recovered: true,
+              explorer: getExplorerTxUrl(paymentTxid, NETWORK),
+            },
+          });
+        }
 
         // Step 1: POST without payment → get 402 challenge
         const inboxUrl = `${INBOX_BASE}/${recipientBtcAddress}`;
@@ -410,8 +481,8 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
           throw new Error(errorBase);
         }
 
-        // Retries exhausted -- check if any relay txid confirmed on-chain.
-        // If so, the message was delivered and we can recover.
+        // Retries exhausted -- check if any relay txid confirmed on-chain and
+        // resubmit with the confirmed txid as payment proof.
         if (seenRelayTxids.size > 0) {
           console.error(
             `[send_inbox_message] Checking on-chain status of ${seenRelayTxids.size} seen txid(s) before giving up.`
@@ -419,13 +490,21 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
           for (const seenTxid of seenRelayTxids) {
             try {
               const confirmation = await pollTransactionConfirmation(seenTxid, NETWORK, 5_000);
-              if (confirmation.status === "success" || confirmation.status === "confirmed") {
-                console.error(
-                  `[send_inbox_message] Recovery: txid ${seenTxid} confirmed on-chain. Treating as success.`
-                );
+              if (confirmation.status !== "success" && confirmation.status !== "confirmed") {
+                continue;
+              }
+              console.error(
+                `[send_inbox_message] Auto-recovery: txid ${seenTxid} confirmed on-chain. Resubmitting.`
+              );
+              const result = await submitWithPaymentTxid(
+                recipientBtcAddress, recipientStxAddress, content, seenTxid
+              );
+              if (result.ok) {
                 return createJsonResponse({
                   success: true,
-                  message: "Message delivered (recovered from stale dedup)",
+                  message: result.status === 409
+                    ? "Message already delivered"
+                    : "Message delivered (auto-recovered with confirmed txid)",
                   recipient: {
                     btcAddress: recipientBtcAddress,
                     stxAddress: recipientStxAddress,
@@ -439,6 +518,9 @@ Use this instead of execute_x402_endpoint for inbox messages — the generic too
                   },
                 });
               }
+              console.error(
+                `[send_inbox_message] Auto-recovery resubmission failed for txid ${seenTxid}: ${result.status} ${result.body}`
+              );
             } catch {
               // Non-fatal: move on to the next txid
             }
