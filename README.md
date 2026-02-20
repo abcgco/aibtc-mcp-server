@@ -438,10 +438,12 @@ Or use any SIP-010 token by contract ID: `SP2X...::token-name`
 
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
-| `NETWORK` | `mainnet` or `testnet` | `testnet` |
+| `NETWORK` | `mainnet` or `testnet` | `mainnet` (installer) / `testnet` (if unset) |
 | `API_URL` | Default x402 API base URL | `https://x402.biwas.xyz` |
 | `CLIENT_MNEMONIC` | (Optional) Pre-configured mnemonic | - |
 | `HIRO_API_KEY` | (Optional) Hiro API key for higher rate limits | - |
+
+**Note on `NETWORK`:** The `--install` command writes `NETWORK=mainnet` by default (pass `--testnet` to use testnet). If you omit `NETWORK` from your config entirely, the runtime fallback is `testnet`. Most users should set this explicitly.
 
 **Note:** `CLIENT_MNEMONIC` is optional. The recommended approach is to let Claude create its own wallet. `HIRO_API_KEY` is optional but recommended for production use — without it, you may hit Hiro's public rate limits (429 responses). Get a key at [platform.hiro.so](https://platform.hiro.so).
 
