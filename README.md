@@ -10,7 +10,7 @@ Bitcoin-native MCP server for AI agents: BTC/STX wallets, DeFi yield, sBTC peg, 
 - **Bitcoin L1** - Check balances, send BTC, manage UTXOs via mempool.space
 - **Agent's Own Wallet** - Agents get their own wallet to perform blockchain transactions
 - **Secure Storage** - Wallets encrypted with AES-256-GCM and stored locally
-- **120+ Tools** - Bitcoin L1 + comprehensive Stacks L2 operations
+- **166 Tools** - Bitcoin L1 + comprehensive Stacks L2 operations
 - **sBTC Support** - Native Bitcoin on Stacks operations
 - **Token Operations** - SIP-010 fungible token transfers and queries
 - **NFT Support** - SIP-009 NFT holdings, transfers, and metadata
@@ -194,7 +194,7 @@ Claude: Done! Transaction broadcast: abc123...
 
 Both addresses are derived from the same recovery phrase, making it easy to manage both Layer 1 (Bitcoin) and Layer 2 (Stacks) assets.
 
-## Available Tools (120+ total)
+## Available Tools (166 total)
 
 ### Wallet Management
 | Tool | Description |
@@ -438,7 +438,7 @@ Or use any SIP-010 token by contract ID: `SP2X...::token-name`
 
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
-| `NETWORK` | `mainnet` or `testnet` | `mainnet` |
+| `NETWORK` | `mainnet` or `testnet` | `testnet` |
 | `API_URL` | Default x402 API base URL | `https://x402.biwas.xyz` |
 | `CLIENT_MNEMONIC` | (Optional) Pre-configured mnemonic | - |
 | `HIRO_API_KEY` | (Optional) Hiro API key for higher rate limits | - |
