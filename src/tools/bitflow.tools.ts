@@ -1,11 +1,45 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getAccount, getWalletAddress, NETWORK } from "../services/x402.service.js";
-import { getBitflowService } from "../services/bitflow.service.js";
+import { getBitflowService, type BitflowService } from "../services/bitflow.service.js";
 import { getExplorerTxUrl } from "../config/networks.js";
 import { createJsonResponse, createErrorResponse, resolveFee } from "../utils/index.js";
 
 const HIGH_IMPACT_THRESHOLD = 0.05; // 5%
+
+/**
+ * Resolve amountIn to the human-unit number the Bitflow SDK expects.
+ * When amountUnit is "human" (default), validates and passes through.
+ * When amountUnit is "base", converts from smallest units using token decimals.
+ */
+async function resolveAmountIn(
+  bitflowService: BitflowService,
+  tokenX: string,
+  amountIn: string,
+  amountUnit: "human" | "base"
+): Promise<number> {
+  if (amountUnit === "base") {
+    if (!/^[1-9]\d*$/.test(amountIn)) {
+      throw new Error("amountIn must be a positive integer when amountUnit='base'");
+    }
+    const tokens = await bitflowService.getAvailableTokens();
+    const tokenIn = tokens.find((t) => t.id === tokenX);
+    if (!tokenIn) {
+      throw new Error(`Unknown tokenX '${tokenX}' for base-unit conversion`);
+    }
+    const numeric = Number(amountIn) / 10 ** tokenIn.decimals;
+    if (!Number.isFinite(numeric)) {
+      throw new Error("Converted amount is too large to handle safely");
+    }
+    return numeric;
+  }
+
+  const numeric = Number(amountIn);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error("amountIn must be a positive number");
+  }
+  return numeric;
+}
 
 export function registerBitflowTools(server: McpServer): void {
   // ==========================================================================
@@ -163,10 +197,17 @@ Note: Bitflow is only available on mainnet.`,
       inputSchema: {
         tokenX: z.string().describe("Input token ID (e.g. 'token-stx', 'token-sbtc')"),
         tokenY: z.string().describe("Output token ID (e.g. 'token-sbtc', 'token-aeusdc')"),
-        amountIn: z.string().describe("Amount of input token (in smallest units)"),
+        amountIn: z
+          .string()
+          .describe("Amount of input token. Default interpretation is human units (e.g. '100' = 100 LEO)."),
+        amountUnit: z
+          .enum(["human", "base"])
+          .optional()
+          .default("human")
+          .describe("Amount units: 'human' (default, frontend-style) or 'base' (smallest units)."),
       },
     },
-    async ({ tokenX, tokenY, amountIn }) => {
+    async ({ tokenX, tokenY, amountIn, amountUnit }) => {
       try {
         if (NETWORK !== "mainnet") {
           return createJsonResponse({
@@ -176,7 +217,9 @@ Note: Bitflow is only available on mainnet.`,
         }
 
         const bitflowService = getBitflowService(NETWORK);
-        const quote = await bitflowService.getSwapQuote(tokenX, tokenY, Number(amountIn));
+        const normalizedAmountIn = await resolveAmountIn(bitflowService, tokenX, amountIn, amountUnit);
+
+        const quote = await bitflowService.getSwapQuote(tokenX, tokenY, normalizedAmountIn);
 
         const priceImpact = quote.priceImpact;
         const highImpactWarning =
@@ -186,6 +229,13 @@ Note: Bitflow is only available on mainnet.`,
 
         return createJsonResponse({
           network: NETWORK,
+          inputs: {
+            tokenX,
+            tokenY,
+            amountIn,
+            amountUnit,
+            normalizedAmountIn,
+          },
           quote,
           priceImpact,
           highImpactWarning,
@@ -255,7 +305,14 @@ Note: Bitflow is only available on mainnet.`,
       inputSchema: {
         tokenX: z.string().describe("Input token ID (contract address)"),
         tokenY: z.string().describe("Output token ID (contract address)"),
-        amountIn: z.string().describe("Amount of input token (in smallest units)"),
+        amountIn: z
+          .string()
+          .describe("Amount of input token. Default interpretation is human units (e.g. '100' = 100 LEO)."),
+        amountUnit: z
+          .enum(["human", "base"])
+          .optional()
+          .default("human")
+          .describe("Amount units: 'human' (default, frontend-style) or 'base' (smallest units)."),
         slippageTolerance: z
           .number()
           .optional()
@@ -272,7 +329,7 @@ Note: Bitflow is only available on mainnet.`,
           .describe("Set true to execute swaps with price impact above 5%"),
       },
     },
-    async ({ tokenX, tokenY, amountIn, slippageTolerance, fee, confirmHighImpact }) => {
+    async ({ tokenX, tokenY, amountIn, amountUnit, slippageTolerance, fee, confirmHighImpact }) => {
       try {
         if (NETWORK !== "mainnet") {
           return createJsonResponse({
@@ -282,9 +339,10 @@ Note: Bitflow is only available on mainnet.`,
         }
 
         const bitflowService = getBitflowService(NETWORK);
+        const normalizedAmountIn = await resolveAmountIn(bitflowService, tokenX, amountIn, amountUnit);
 
         // Safety check: require explicit confirmation for high-impact swaps
-        const quote = await bitflowService.getSwapQuote(tokenX, tokenY, Number(amountIn));
+        const quote = await bitflowService.getSwapQuote(tokenX, tokenY, normalizedAmountIn);
         const impact = quote.priceImpact;
         if (impact && impact.combinedImpact > HIGH_IMPACT_THRESHOLD && !confirmHighImpact) {
           return createJsonResponse({
@@ -302,7 +360,7 @@ Note: Bitflow is only available on mainnet.`,
           account,
           tokenX,
           tokenY,
-          Number(amountIn),
+          normalizedAmountIn,
           slippageTolerance || 0.01,
           resolvedFee
         );
@@ -314,6 +372,8 @@ Note: Bitflow is only available on mainnet.`,
             tokenIn: tokenX,
             tokenOut: tokenY,
             amountIn,
+            amountUnit,
+            normalizedAmountIn,
             slippageTolerance: slippageTolerance || 0.01,
             priceImpact: impact,
           },
