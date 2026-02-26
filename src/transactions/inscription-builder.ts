@@ -35,6 +35,24 @@ export interface InscriptionData {
 }
 
 /**
+ * Options for deriving the reveal script from inscription data
+ */
+export interface DeriveRevealScriptOptions {
+  /**
+   * Inscription data to encode in the script
+   */
+  inscription: InscriptionData;
+  /**
+   * Sender's public key (compressed, 33 bytes)
+   */
+  senderPubKey: Uint8Array;
+  /**
+   * Network (mainnet or testnet)
+   */
+  network: Network;
+}
+
+/**
  * Options for building a commit transaction
  */
 export interface BuildCommitTransactionOptions {
@@ -151,6 +169,44 @@ function getBtcNetwork(network: Network): typeof btc.NETWORK {
 }
 
 /**
+ * Derive the Taproot P2TR reveal script from inscription data and sender public key.
+ *
+ * This is the deterministic portion of the commit/reveal setup: given the same
+ * inscription content and sender key, it always produces the same reveal address.
+ * Both `buildCommitTransaction` and the `inscribe_reveal` tool call this to obtain
+ * the reveal script without coupling through a full commit transaction build.
+ *
+ * @param options - Inscription data, sender public key, and network
+ * @returns Taproot P2TR output ready for use in the reveal transaction
+ * @throws Error if the reveal address cannot be generated
+ */
+export function deriveRevealScript(
+  options: DeriveRevealScriptOptions
+): ReturnType<typeof btc.p2tr> {
+  const { inscription, senderPubKey, network } = options;
+
+  const btcNetwork = getBtcNetwork(network);
+  const inscriptionData = {
+    tags: { contentType: inscription.contentType },
+    body: inscription.body,
+  };
+
+  // Convert compressed pubkey (33 bytes) to x-only pubkey (32 bytes) for Taproot
+  const xOnlyPubkey = senderPubKey.slice(1);
+
+  const revealScriptData = p2tr_ord_reveal(xOnlyPubkey, [inscriptionData]);
+
+  // Create P2TR output for script-path spending
+  const p2trReveal = btc.p2tr(xOnlyPubkey, revealScriptData, btcNetwork, true);
+
+  if (!p2trReveal.address) {
+    throw new Error("Failed to generate reveal address");
+  }
+
+  return p2trReveal;
+}
+
+/**
  * Build a commit transaction for an inscription
  *
  * The commit transaction sends funds to a Taproot address derived from the
@@ -211,27 +267,9 @@ export function buildCommitTransaction(
     throw new Error("No confirmed UTXOs available");
   }
 
-  // Create inscription reveal script using micro-ordinals
-  // p2tr_ord_reveal returns { type: 'tr', script: Uint8Array }
+  // Derive the reveal script deterministically from inscription + sender key
+  const p2trReveal = deriveRevealScript({ inscription, senderPubKey, network });
   const btcNetwork = getBtcNetwork(network);
-  const inscriptionData = {
-    tags: { contentType: inscription.contentType },
-    body: inscription.body,
-  };
-
-  // Convert compressed pubkey (33 bytes) to x-only pubkey (32 bytes) for Taproot
-  // Compressed format: 1 byte prefix (02/03) + 32 bytes x-coordinate
-  const xOnlyPubkey = senderPubKey.slice(1);
-
-  const revealScriptData = p2tr_ord_reveal(xOnlyPubkey, [inscriptionData]);
-
-  // Create P2TR output from the reveal script
-  // For script path spending, we use the internal pubkey and the script tree
-  const p2trReveal = btc.p2tr(xOnlyPubkey, revealScriptData, btcNetwork, true);
-
-  if (!p2trReveal.address) {
-    throw new Error("Failed to generate reveal address");
-  }
 
   // Estimate reveal transaction size to determine commit amount
   // Reveal tx: 1 input (Taproot with inscription witness) + 1 output (recipient)
@@ -419,7 +457,7 @@ export function buildRevealTransaction(
       amount: BigInt(commitAmount),
     },
     // Include taproot script path info for script-path spending
-    ...revealScript.tapLeafScript,
+    tapLeafScript: revealScript.tapLeafScript,
   });
 
   // Add output to recipient (Taproot address)

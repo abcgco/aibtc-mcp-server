@@ -32,6 +32,7 @@ import { getWalletManager } from "../services/wallet-manager.js";
 import {
   buildCommitTransaction,
   buildRevealTransaction,
+  deriveRevealScript,
   type InscriptionData,
 } from "../transactions/inscription-builder.js";
 import { signBtcTransaction } from "../transactions/bitcoin-builder.js";
@@ -369,15 +370,6 @@ export function registerOrdinalsTools(server: McpServer): void {
           body,
         };
 
-        // We need to rebuild the commit to get the reveal script
-        // Use a dummy UTXO list since we only need the reveal script derivation
-        const dummyUtxos = [{
-          txid: commitTxid,
-          vout: 0,
-          value: revealAmount,
-          status: { confirmed: true, block_height: 0, block_hash: "", block_time: 0 },
-        }];
-
         // Get fee rate
         let actualFeeRate: number;
         if (typeof feeRate === "string") {
@@ -396,13 +388,11 @@ export function registerOrdinalsTools(server: McpServer): void {
           actualFeeRate = feeRate || (await mempoolApi.getFeeEstimates()).halfHourFee;
         }
 
-        // Rebuild commit to get reveal script (we need the same script derivation)
-        const commitResult = buildCommitTransaction({
-          utxos: dummyUtxos,
+        // Derive the reveal script deterministically from inscription + sender key
+        // (same derivation used in the commit step — no dummy UTXOs needed)
+        const p2trReveal = deriveRevealScript({
           inscription,
-          feeRate: actualFeeRate,
           senderPubKey: account.btcPublicKey,
-          senderAddress: sessionInfo.btcAddress || "",
           network: NETWORK,
         });
 
@@ -411,7 +401,7 @@ export function registerOrdinalsTools(server: McpServer): void {
           commitTxid,
           commitVout: 0,
           commitAmount: revealAmount,
-          revealScript: commitResult.revealScript,
+          revealScript: p2trReveal,
           recipientAddress: sessionInfo.taprootAddress,
           feeRate: actualFeeRate,
           network: NETWORK,
