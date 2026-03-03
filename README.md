@@ -230,6 +230,14 @@ Both addresses are derived from the same recovery phrase, making it easy to mana
 | `get_inscription` | Fetch inscription content from reveal tx |
 | `get_inscriptions_by_address` | List inscriptions owned by address |
 
+### PSBT & Ordinals Trading
+| Tool | Description |
+|------|-------------|
+| `psbt_create_ordinal_buy` | Build a buyer-side PSBT for ordinal purchase |
+| `psbt_sign` | Sign selected PSBT inputs with active wallet keys |
+| `psbt_decode` | Decode PSBT inputs/outputs/signature status |
+| `psbt_broadcast` | Finalize and broadcast a fully-signed PSBT |
+
 ### Message Signing
 | Tool | Description |
 |------|-------------|
@@ -259,7 +267,12 @@ Both addresses are derived from the same recovery phrase, making it easy to mana
 |------|-------------|
 | `sbtc_get_balance` | Get sBTC balance |
 | `sbtc_transfer` | Send sBTC |
+| `sbtc_initiate_withdrawal` | Initiate sBTC peg-out to BTC L1 |
+| `sbtc_withdraw` | Alias for withdrawal initiation |
+| `sbtc_withdrawal_status` | Check withdrawal request status |
 | `sbtc_get_deposit_info` | Get BTC deposit instructions |
+| `sbtc_deposit` | Build, sign, and broadcast BTC→sBTC deposit |
+| `sbtc_deposit_status` | Check deposit status via Emily API |
 | `sbtc_get_peg_info` | Get peg ratio and TVL |
 
 ### Token Operations (SIP-010)
