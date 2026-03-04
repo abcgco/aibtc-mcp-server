@@ -40,3 +40,9 @@ export const P2TR_INPUT_BASE_VBYTES = 57.5;
  * Inscription witness overhead (vbytes) - control block, script, and protocol framing
  */
 export const WITNESS_OVERHEAD_VBYTES = 80;
+
+/**
+ * BIP 125 RBF sequence number.
+ * Any sequence < 0xfffffffe signals replaceability, allowing fee bumps via RBF.
+ */
+export const RBF_SEQUENCE = 0xfffffffd;

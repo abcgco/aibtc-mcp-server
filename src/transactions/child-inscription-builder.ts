@@ -19,6 +19,7 @@ import {
   TX_OVERHEAD_VBYTES,
   DUST_THRESHOLD,
   WITNESS_OVERHEAD_VBYTES,
+  RBF_SEQUENCE,
 } from "../config/bitcoin-constants.js";
 import type { UTXO } from "../services/mempool-api.js";
 import { getBtcNetwork } from "./bitcoin-builder.js";
@@ -267,6 +268,7 @@ export function buildChildCommitTransaction(
     tx.addInput({
       txid: utxo.txid,
       index: utxo.vout,
+      sequence: RBF_SEQUENCE,
       witnessUtxo: {
         script: senderP2wpkh.script,
         amount: BigInt(utxo.value),
@@ -329,9 +331,11 @@ export function buildChildRevealTransaction(
   // Estimate reveal transaction size
   const revealInputSize = P2TR_INPUT_BASE_VBYTES; // commit input
   const parentInputSize = P2TR_INPUT_BASE_VBYTES; // parent key-path input
-  const revealWitnessSize = Math.ceil(
-    (revealScript.script?.byteLength || 0) / 4
-  );
+  // The witness includes the full tapLeafScript (inscription data + control block)
+  const tapLeafScriptSize = revealScript.tapLeafScript
+    ? revealScript.tapLeafScript.reduce((sum, [_, s]) => sum + s.length + 33, 0)
+    : 0;
+  const revealWitnessSize = Math.ceil(tapLeafScriptSize / 4) + WITNESS_OVERHEAD_VBYTES;
   const revealTxSize =
     TX_OVERHEAD_VBYTES +
     revealInputSize +
@@ -362,6 +366,7 @@ export function buildChildRevealTransaction(
   tx.addInput({
     txid: commitTxid,
     index: commitVout,
+    sequence: RBF_SEQUENCE,
     witnessUtxo: {
       script: revealScript.script,
       amount: BigInt(commitAmount),
@@ -378,6 +383,7 @@ export function buildChildRevealTransaction(
   tx.addInput({
     txid: parentUtxo.txid,
     index: parentUtxo.vout,
+    sequence: RBF_SEQUENCE,
     witnessUtxo: {
       script: parentP2tr.script,
       amount: BigInt(parentUtxo.value),
