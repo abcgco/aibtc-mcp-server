@@ -12,6 +12,8 @@ import {
   listCV,
   tupleCV,
   noneCV,
+  someCV,
+  bufferCV,
 } from "@stacks/transactions";
 import { STACKS_MAINNET } from "@stacks/network";
 import { AlexSDK, Currency, type TokenInfo } from "alex-sdk";
@@ -424,6 +426,61 @@ export class ZestProtocolService {
   }
 
   /**
+   * Pyth price feed IDs used by Zest's oracle contracts.
+   * BTC and STX feeds cover all current Zest assets.
+   */
+  // BTC/USD and STX/USD are sufficient for all current Zest assets.
+  // Stablecoin assets (aeUSDC, sUSDT, USDA, USDh) use on-chain fixed-price oracles
+  // rather than Pyth feeds, so no additional feed IDs are needed here.
+  private static PYTH_FEED_IDS = [
+    "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43", // BTC/USD
+    "0xec7a775f46379b5e943c3526b1c8d54cd49749176b0b98e02dde68d1bd335c17", // STX/USD
+  ];
+
+  private priceFeedCache: { value: ClarityValue; timestamp: number } | null = null;
+  private static PRICE_FEED_TTL_MS = 30_000; // 30s cache — oracle rejects >360s
+
+  /**
+   * Fetch fresh Pyth price update VAA from Hermes API.
+   * Caches for 30s to avoid redundant requests when multiple ops run in sequence.
+   * Returns someCV(bufferCV(...)) for the price-feed-bytes parameter,
+   * or noneCV() if the fetch fails (graceful degradation).
+   */
+  private async fetchPriceFeedBytes(): Promise<ClarityValue> {
+    if (this.priceFeedCache && Date.now() - this.priceFeedCache.timestamp < ZestProtocolService.PRICE_FEED_TTL_MS) {
+      return this.priceFeedCache.value;
+    }
+    try {
+      const ids = ZestProtocolService.PYTH_FEED_IDS
+        .map((id) => `ids[]=${id}`)
+        .join("&");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5_000);
+      const res = await fetch(
+        `https://hermes.pyth.network/v2/updates/price/latest?${ids}&encoding=hex`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!res.ok) {
+        console.warn(`Pyth Hermes returned HTTP ${res.status}, falling back to noneCV()`);
+        return noneCV();
+      }
+      const data = await res.json() as { binary?: { data?: string[] } };
+      const hex = data?.binary?.data?.[0];
+      if (!hex) {
+        console.warn("Pyth Hermes response missing binary data, falling back to noneCV()");
+        return noneCV();
+      }
+      const value = someCV(bufferCV(Buffer.from(hex, "hex")));
+      this.priceFeedCache = { value, timestamp: Date.now() };
+      return value;
+    } catch (err) {
+      console.warn("Failed to fetch Pyth price feed, falling back to noneCV():", err);
+      return noneCV();
+    }
+  }
+
+  /**
    * Get all supported assets from Zest Protocol
    * Returns the hardcoded asset list with full metadata
    */
@@ -556,6 +613,8 @@ export class ZestProtocolService {
     const [oracleAddr, oracleName] = parseContractIdTuple(assetConfig.oracle);
     const [incentivesAddr, incentivesName] = parseContractIdTuple(this.contracts!.incentives);
 
+    const priceFeedBytes = await this.fetchPriceFeedBytes();
+
     const functionArgs: ClarityValue[] = [
       contractPrincipalCV(lpAddr, lpName),                    // lp
       principalCV(this.contracts!.poolReserve),               // pool-reserve
@@ -565,15 +624,25 @@ export class ZestProtocolService {
       principalCV(account.address),                           // owner
       this.buildAssetsListCV(),                               // assets
       contractPrincipalCV(incentivesAddr, incentivesName),    // incentives
-      noneCV(),                                               // price-feed-bytes (none for now)
+      priceFeedBytes,                                          // price-feed-bytes (Pyth VAA)
     ];
 
-    // Post-condition: pool reserve will send us the withdrawn asset
-    // Using willSendLte because actual amount may be slightly different due to interest
+    // Post-conditions:
+    // 1. pool-vault sends us the withdrawn asset (not pool-reserve)
+    // 2. sender pays small STX fee for Pyth oracle update (~2 uSTX)
+    // 3. sender burns LP tokens (zsbtc etc.)
+    // LP tokens are minted 1:1 with supplied amount, so burning ≤ withdraw amount is safe.
+    const [lpFtContract, lpFtAssetName] = assetConfig.lpFungibleToken.split("::");
     const postConditions = [
-      Pc.principal(this.contracts!.poolReserve)
+      Pc.principal(this.contracts!.poolVault as `${string}.${string}`)
         .willSendLte(amount)
         .ft(assetConfig.token as `${string}.${string}`, assetName),
+      Pc.principal(account.address)
+        .willSendLte(100n)
+        .ustx(),
+      Pc.principal(account.address)
+        .willSendLte(amount)
+        .ft(lpFtContract as `${string}.${string}`, lpFtAssetName),
     ];
 
     return callContract(account, {
@@ -604,6 +673,8 @@ export class ZestProtocolService {
     const [lpAddr, lpName] = parseContractIdTuple(assetConfig.lpToken);
     const [oracleAddr, oracleName] = parseContractIdTuple(assetConfig.oracle);
 
+    const priceFeedBytes = await this.fetchPriceFeedBytes();
+
     const functionArgs: ClarityValue[] = [
       principalCV(this.contracts!.poolReserve),               // pool-reserve
       contractPrincipalCV(oracleAddr, oracleName),            // oracle
@@ -614,14 +685,19 @@ export class ZestProtocolService {
       principalCV(this.contracts!.feesCalculator),            // fee-calculator
       uintCV(BigInt(0)),                                      // interest-rate-mode (0 = variable)
       principalCV(account.address),                           // owner
-      noneCV(),                                               // price-feed-bytes (none for now)
+      priceFeedBytes,                                          // price-feed-bytes (Pyth VAA)
     ];
 
-    // Post-condition: pool reserve will send us the borrowed asset
+    // Post-conditions:
+    // 1. pool-vault sends borrowed asset (not pool-reserve)
+    // 2. sender pays small STX fee for Pyth oracle update (~2 uSTX)
     const postConditions = [
-      Pc.principal(this.contracts!.poolReserve)
+      Pc.principal(this.contracts!.poolVault as `${string}.${string}`)
         .willSendLte(amount)
         .ft(assetConfig.token as `${string}.${string}`, assetName),
+      Pc.principal(account.address)
+        .willSendLte(100n)
+        .ustx(),
     ];
 
     return callContract(account, {
@@ -696,6 +772,8 @@ export class ZestProtocolService {
     const [incentivesAddr, incentivesName] = parseContractIdTuple(this.contracts!.incentives);
     const [wstxAddr, wstxName] = parseContractIdTuple(this.contracts!.wstx);
 
+    const priceFeedBytes = await this.fetchPriceFeedBytes();
+
     const functionArgs: ClarityValue[] = [
       contractPrincipalCV(lpAddr, lpName),                    // lp
       principalCV(this.contracts!.poolReserve),               // pool-reserve
@@ -705,16 +783,19 @@ export class ZestProtocolService {
       this.buildAssetsListCV(),                               // assets
       contractPrincipalCV(wstxAddr, wstxName),                // reward-asset (wSTX)
       contractPrincipalCV(incentivesAddr, incentivesName),    // incentives
-      noneCV(),                                               // price-feed-bytes (none for now)
+      priceFeedBytes,                                          // price-feed-bytes (Pyth VAA)
     ];
 
-    // Post-condition: pool reserve will send wSTX rewards to user
-    // Using willSendGte(0n) since we don't know the exact reward amount
-    // Deny mode ensures no unexpected token transfers can occur
+    // Post-conditions:
+    // 1. pool reserve will send wSTX rewards to user
+    // 2. sender pays small STX fee for Pyth oracle update (~2 uSTX)
     const postConditions = [
       Pc.principal(this.contracts!.poolReserve)
         .willSendGte(0n)
         .ft(this.contracts!.wstx as `${string}.${string}`, wstxName),
+      Pc.principal(account.address)
+        .willSendLte(100n)
+        .ustx(),
     ];
 
     return callContract(account, {

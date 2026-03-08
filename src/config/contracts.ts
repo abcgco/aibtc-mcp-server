@@ -26,8 +26,9 @@ export const MAINNET_CONTRACTS = {
 
   // Zest Protocol
   ZEST_POOL_BORROW: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.pool-borrow-v2-3",
-  ZEST_BORROW_HELPER: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.borrow-helper-v2-1-5",
+  ZEST_BORROW_HELPER: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.borrow-helper-v2-1-7",
   ZEST_POOL_RESERVE: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.pool-0-reserve-v2-0",
+  ZEST_POOL_VAULT: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.pool-vault",
   ZEST_FEES_CALCULATOR: "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.fees-calculator",
   ZEST_INCENTIVES: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.incentives-v2-2",
   ZEST_WSTX: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.wstx",
@@ -45,6 +46,7 @@ export const MAINNET_CONTRACTS = {
 export interface ZestAssetConfig {
   token: string;
   lpToken: string;
+  lpFungibleToken: string; // FT contract::asset for LP token (e.g. "SP2VCQ...ZW1QF4N.zsbtc-token::zsbtc")
   oracle: string;
   decimals: number;
   symbol: string;
@@ -55,6 +57,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   sBTC: {
     token: "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsbtc-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsbtc-token::zsbtc",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.stx-btc-oracle-v1-4",
     decimals: 8,
     symbol: "sBTC",
@@ -63,6 +66,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   aeUSDC: {
     token: "SP3Y2ZSH8P7D50B0VBTSX11S7XSG24M1VB9YFQA4K.token-aeusdc",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zaeusdc-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zaeusdc-token::zaeusdc",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.aeusdc-oracle-v1-0",
     decimals: 6,
     symbol: "aeUSDC",
@@ -71,6 +75,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   USDH: {
     token: "SPN5AKG35QZSK2M8GAMR4AFX45659RJHDW353HSG.usdh-token-v1",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zusdh-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zusdh-token::zusdh",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.usdh-oracle-v1-0",
     decimals: 8,
     symbol: "USDH",
@@ -79,6 +84,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   stSTX: {
     token: "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststx-token",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zststx-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zststx-token::zststx",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.stx-btc-oracle-v1-4",
     decimals: 6,
     symbol: "stSTX",
@@ -87,6 +93,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   wSTX: {
     token: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.wstx",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zwstx-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zwstx-token::zwstx",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.stx-btc-oracle-v1-4",
     decimals: 6,
     symbol: "wSTX",
@@ -95,6 +102,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   sUSDT: {
     token: "SP2XD7417HGPRTREMKF748VNEQPDRR0RMANB7X1NK.token-susdt",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsusdt-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zsusdt-token::zsusdt",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.susdt-oracle-v1-0",
     decimals: 6,
     symbol: "sUSDT",
@@ -103,6 +111,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   USDA: {
     token: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.usda-token",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zusda-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zusda-token::zusda",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.usda-oracle-v1-1",
     decimals: 6,
     symbol: "USDA",
@@ -111,6 +120,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   DIKO: {
     token: "SP2C2YFP12AJZB4MABJBAJ55XECVS7E4PMMZ89YZR.arkadiko-token",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zdiko-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zdiko-token::zdiko",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.diko-oracle-v1-1",
     decimals: 6,
     symbol: "DIKO",
@@ -119,6 +129,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   ALEX: {
     token: "SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-alex",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zalex-v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zalex-token::zalex",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.alex-oracle-v1-1",
     decimals: 8,
     symbol: "ALEX",
@@ -127,6 +138,7 @@ export const ZEST_ASSETS: Record<string, ZestAssetConfig> = {
   "stSTX-BTC": {
     token: "SP4SZE494VC2YC5JYG7AYFQ44F5Q4PYV7DVMDPBG.ststxbtc-token-v2",
     lpToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zststxbtc-v2_v2-0",
+    lpFungibleToken: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.zststxbtc-v2-token::zststxbtc-v2",
     oracle: "SP2VCQJGH7PHP2DJK7Z0V48AGBHQAW3R3ZW1QF4N.stx-btc-oracle-v1-4",
     decimals: 6,
     symbol: "stSTX-BTC",
@@ -236,6 +248,7 @@ export function getZestContracts(network: Network) {
       poolBorrow: MAINNET_CONTRACTS.ZEST_POOL_BORROW,
       borrowHelper: MAINNET_CONTRACTS.ZEST_BORROW_HELPER,
       poolReserve: MAINNET_CONTRACTS.ZEST_POOL_RESERVE,
+      poolVault: MAINNET_CONTRACTS.ZEST_POOL_VAULT,
       feesCalculator: MAINNET_CONTRACTS.ZEST_FEES_CALCULATOR,
       incentives: MAINNET_CONTRACTS.ZEST_INCENTIVES,
       wstx: MAINNET_CONTRACTS.ZEST_WSTX,
