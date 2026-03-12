@@ -6,7 +6,9 @@ import {
   stringAsciiCV,
   uintCV,
   principalCV,
+  bufferCV,
   noneCV,
+  someCV,
   trueCV,
   falseCV,
 } from "@stacks/transactions";
@@ -17,10 +19,21 @@ import {
 } from "../services/signing-key.service.js";
 import { getPillarApi } from "../services/pillar-api.service.js";
 import { getHiroApi } from "../services/hiro-api.js";
-import { NETWORK, getExplorerTxUrl } from "../config/networks.js";
-import { MAINNET_CONTRACTS } from "../config/contracts.js";
+import { NETWORK } from "../config/networks.js";
 import { PILLAR_API_KEY } from "../config/pillar.js";
-import { createJsonResponse, createErrorResponse, formatStx } from "../utils/index.js";
+import { createJsonResponse, createErrorResponse } from "../utils/index.js";
+
+// ============================================================================
+// Token contract IDs (mainnet)
+// ============================================================================
+
+const SBTC_CONTRACT = "SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token";
+const AEUSDC_CONTRACT = "SP3Y2ZSH8P7D50B0VBTSX11S7XSG24M1VB9YFQA4K.token-aeusdc";
+
+function explorerTxUrl(txId: string): string {
+  const id = txId.startsWith("0x") ? txId : `0x${txId}`;
+  return `https://explorer.hiro.so/txid/${id}?chain=mainnet`;
+}
 
 // ============================================================================
 // Helpers
@@ -79,7 +92,7 @@ async function requireActiveKey() {
 
     if (!unlocked) {
       throw new Error(
-        "Signing key locked and auto-unlock failed. Set PILLAR_API_KEY environment variable or use pillar_key_unlock with your password."
+        "Signing key locked and auto-unlock failed. Use pillar_key_unlock with your password."
       );
     }
 
@@ -105,62 +118,6 @@ function formatSigAuthForApi(sigAuth: SigAuth) {
       ? sigAuth.pubkey
       : "0x" + sigAuth.pubkey,
   };
-}
-
-/**
- * Guard that returns an error response if not on mainnet, or null if mainnet.
- */
-function requireMainnet(): ReturnType<typeof createJsonResponse> | null {
-  if (NETWORK !== "mainnet") {
-    return createJsonResponse({
-      error: "Pillar Direct tools are only available on mainnet",
-      network: NETWORK,
-    });
-  }
-  return null;
-}
-
-/**
- * Extract wallet name from contract address (e.g. "SPxxx.telegram-wallet" -> "telegram-wallet").
- */
-function getWalletName(contractAddress: string): string {
-  return contractAddress.split(".")[1] || contractAddress;
-}
-
-/**
- * Resolve a recipient identifier (BNS name, Pillar wallet name, or Stacks address)
- * to a Stacks address. Throws on resolution failure.
- */
-async function resolveRecipientAddress(
-  api: ReturnType<typeof getPillarApi>,
-  to: string,
-  recipientType: string
-): Promise<string> {
-  if (recipientType === "address" || to.startsWith("SP") || to.startsWith("ST")) {
-    return to;
-  }
-
-  if (recipientType === "wallet") {
-    const walletLookup = await api.get<{
-      success: boolean;
-      data: { contractAddress: string } | null;
-    }>(`/api/smart-wallet/${to}`);
-    if (!walletLookup.data?.contractAddress) {
-      throw new Error(`Pillar wallet "${to}" not found.`);
-    }
-    return walletLookup.data.contractAddress;
-  }
-
-  // BNS name resolution
-  const bnsName = to.endsWith(".btc") ? to : `${to}.btc`;
-  const bnsLookup = await api.get<{
-    success: boolean;
-    data: { address: string } | null;
-  }>("/api/bns/resolve", { name: bnsName });
-  if (!bnsLookup.data?.address) {
-    throw new Error(`BNS name "${bnsName}" could not be resolved.`);
-  }
-  return bnsLookup.data.address;
 }
 
 // ============================================================================
@@ -343,9 +300,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ sbtcAmount, aeUsdcToBorrow, minSbtcFromSwap }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -374,7 +328,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "pillar-boost",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
         });
       } catch (error) {
@@ -407,9 +361,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ sbtcToSwap, sbtcToWithdraw, minAeUsdcFromSwap }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -438,7 +389,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "pillar-unwind",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
         });
       } catch (error) {
@@ -465,9 +416,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ sbtcAmount }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -492,7 +440,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "pillar-add-collateral",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
         });
       } catch (error) {
@@ -528,13 +476,37 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ to, amount, recipientType }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const api = getPillarApi();
 
-        const resolvedAddress = await resolveRecipientAddress(api, to, recipientType);
+        // Resolve recipient to a Stacks address before building the hash.
+        // principalCV() only accepts SP/ST addresses — BNS/wallet names must be resolved first.
+        let resolvedAddress: string;
+
+        if (recipientType === "address" || to.startsWith("SP") || to.startsWith("ST")) {
+          resolvedAddress = to;
+        } else if (recipientType === "wallet") {
+          // Pillar wallet name → look up contract address via backend
+          const walletLookup = await api.get<{
+            success: boolean;
+            data: { contractAddress: string } | null;
+          }>(`/api/smart-wallet/${to}`);
+          if (!walletLookup.data?.contractAddress) {
+            throw new Error(`Pillar wallet "${to}" not found.`);
+          }
+          resolvedAddress = walletLookup.data.contractAddress;
+        } else {
+          // BNS name → resolve via backend (same as frontend bnsApi.resolve)
+          const bnsName = to.endsWith(".btc") ? to : `${to}.btc`;
+          const bnsLookup = await api.get<{
+            success: boolean;
+            data: { address: string } | null;
+          }>("/api/bns/resolve", { name: bnsName });
+          if (!bnsLookup.data?.address) {
+            throw new Error(`BNS name "${bnsName}" could not be resolved.`);
+          }
+          resolvedAddress = bnsLookup.data.address;
+        }
 
         const authId = generateAuthId();
         const structuredData = tupleCV({
@@ -543,7 +515,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           amount: uintCV(amount),
           recipient: principalCV(resolvedAddress),
           memo: noneCV(),
-          sip010: principalCV(MAINNET_CONTRACTS.SBTC_TOKEN),
+          sip010: principalCV(SBTC_CONTRACT),
         });
 
         const sigAuth = keyService.sign(structuredData, authId);
@@ -554,7 +526,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           walletAddress: session.smartWallet,
           amount,
           recipient: resolvedAddress,
-          sip010: MAINNET_CONTRACTS.SBTC_TOKEN,
+          sip010: SBTC_CONTRACT,
           tokenName: "sbtc-token",
           sigAuth: formatSigAuthForApi(sigAuth),
         });
@@ -563,7 +535,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "sip010-transfer",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
           to,
           resolvedAddress,
@@ -599,9 +571,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ enabled, minSbtc, trigger }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -630,7 +599,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "set-keeper-auto-compound",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
         });
       } catch (error) {
@@ -654,7 +623,9 @@ export function registerPillarDirectTools(server: McpServer): void {
         const { session } = await requireActiveKey();
         const api = getPillarApi();
 
-        const walletName = getWalletName(session.smartWallet);
+        // Extract wallet name from contract address (e.g. "SPxxx.telegram-wallet" → "telegram-wallet")
+        const contractParts = session.smartWallet.split(".");
+        const walletName = contractParts[1] || session.smartWallet;
 
         // First check wallet status in backend
         let walletStatus: string | null = null;
@@ -781,9 +752,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ sbtcAmount }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -808,7 +776,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "pillar-withdraw-collateral",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
         });
       } catch (error) {
@@ -835,9 +803,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ newAdmin }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -862,7 +827,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "add-admin",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
           newAdmin,
         });
@@ -904,9 +869,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ walletName, referredBy }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const api = getPillarApi();
         const password = getDerivedPassword();
 
@@ -980,7 +942,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           contractName: result.data.contractName,
           contractAddress: result.data.contractAddress,
           deployTxId: result.data.deployTxId,
-          explorerUrl: getExplorerTxUrl(result.data.deployTxId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.deployTxId),
           status: result.data.status,
           note: "Signing key generated, unlocked, and wallet deployed. " +
             "Backend is calling onboard() in background (~20-30s). " +
@@ -1394,33 +1356,59 @@ export function registerPillarDirectTools(server: McpServer): void {
     async ({ to, recipientType }) => {
       try {
         const api = getPillarApi();
-        const resolvedAddress = await resolveRecipientAddress(api, to, recipientType);
 
-        // Determine the effective type for the response
-        const effectiveType =
-          recipientType === "address" || to.startsWith("SP") || to.startsWith("ST")
-            ? "address"
-            : recipientType;
-        const bnsName = effectiveType === "bns"
-          ? (to.endsWith(".btc") ? to : `${to}.btc`)
-          : undefined;
+        if (recipientType === "address" || to.startsWith("SP") || to.startsWith("ST")) {
+          return createJsonResponse({
+            success: true,
+            input: to,
+            resolvedAddress: to,
+            type: "address",
+          });
+        }
 
-        return createJsonResponse({
-          success: true,
-          input: to,
-          resolvedAddress,
-          ...(bnsName ? { bnsName } : {}),
-          type: effectiveType,
-        });
-      } catch (error) {
-        // Return resolution failures as structured responses instead of error format
-        if (error instanceof Error) {
+        if (recipientType === "wallet") {
+          const walletLookup = await api.get<{
+            success: boolean;
+            data: { contractAddress: string; walletName: string } | null;
+          }>(`/api/smart-wallet/${to}`);
+          if (!walletLookup.data?.contractAddress) {
+            return createJsonResponse({
+              success: false,
+              input: to,
+              error: `Pillar wallet "${to}" not found.`,
+            });
+          }
+          return createJsonResponse({
+            success: true,
+            input: to,
+            resolvedAddress: walletLookup.data.contractAddress,
+            walletName: walletLookup.data.walletName,
+            type: "wallet",
+          });
+        }
+
+        // BNS
+        const bnsName = to.endsWith(".btc") ? to : `${to}.btc`;
+        const bnsLookup = await api.get<{
+          success: boolean;
+          data: { address: string; name: string } | null;
+        }>("/api/bns/resolve", { name: bnsName });
+        if (!bnsLookup.data?.address) {
           return createJsonResponse({
             success: false,
             input: to,
-            error: error.message,
+            bnsName,
+            error: `BNS name "${bnsName}" could not be resolved.`,
           });
         }
+        return createJsonResponse({
+          success: true,
+          input: to,
+          bnsName,
+          resolvedAddress: bnsLookup.data.address,
+          type: "bns",
+        });
+      } catch (error) {
         return createErrorResponse(error);
       }
     }
@@ -1459,9 +1447,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async ({ stxAmount, pool }) => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -1500,7 +1485,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: pool === "fast-pool" ? "stack-stx-fast-pool" : "stake-stx-stacking-dao",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
           stxAmount,
           stxFormatted: `${stxFormatted} STX`,
@@ -1524,9 +1509,6 @@ export function registerPillarDirectTools(server: McpServer): void {
     },
     async () => {
       try {
-        const guard = requireMainnet();
-        if (guard) return guard;
-
         const { keyService, session } = await requireActiveKey();
         const authId = generateAuthId();
 
@@ -1549,7 +1531,7 @@ export function registerPillarDirectTools(server: McpServer): void {
           success: true,
           operation: "revoke-fast-pool",
           txId: result.data.txId,
-          explorerUrl: getExplorerTxUrl(result.data.txId, NETWORK),
+          explorerUrl: explorerTxUrl(result.data.txId),
           walletAddress: session.smartWallet,
           note: "Delegation revoked. STX will unlock after the current PoX cycle ends.",
         });
@@ -1584,6 +1566,12 @@ export function registerPillarDirectTools(server: McpServer): void {
         const lockedMicro = BigInt(stxBalance.locked || "0");
         const liquidMicro = balanceMicro - lockedMicro;
 
+        const formatStx = (micro: bigint) => {
+          const whole = micro / BigInt(1_000_000);
+          const frac = (micro % BigInt(1_000_000)).toString().padStart(6, "0");
+          return `${whole}.${frac} STX`;
+        };
+
         // Fetch PoX cycle info
         let poxInfo: {
           currentCycleId: number;
@@ -1602,13 +1590,14 @@ export function registerPillarDirectTools(server: McpServer): void {
             minAmountUstx: pox.min_amount_ustx,
             isPoxActive: pox.current_cycle.is_pox_active,
           };
-        } catch (err) {
-          console.error("PoX info fetch failed:", err instanceof Error ? err.message : err);
+        } catch {
+          // PoX info fetch failed, continue without it
         }
 
         // Check enrollment status via backend
         const api = getPillarApi();
-        const walletName = getWalletName(session.smartWallet);
+        const contractParts = session.smartWallet.split(".");
+        const walletName = contractParts[1] || session.smartWallet;
 
         let enrollmentStatus: {
           enrolled: boolean;
@@ -1630,8 +1619,8 @@ export function registerPillarDirectTools(server: McpServer): void {
               dualStackingTxId: walletInfo.data.dualStackingTxId || null,
             };
           }
-        } catch (err) {
-          console.error("Enrollment status fetch failed:", err instanceof Error ? err.message : err);
+        } catch {
+          // Backend lookup failed, continue without enrollment info
         }
 
         const isStacking = lockedMicro > BigInt(0);
